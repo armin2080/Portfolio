@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="bg-teal text-navy py-16">
+    <div class="container mx-auto px-4 md:px-8 text-center">
+        <h2 class="text-3xl md:text-4xl font-bold mb-4">Thank You!</h2>
+        <p class="text-lg mb-8 max-w-2xl mx-auto">
+            Your message has been successfully sent! I appreciate you reaching out and will get back to you as soon as possible.
+        </p>
+
+        <!-- Optional: Add a button or link to return to home or contact -->
+        <a href="{% url 'index' %}" 
+           class="btn-primary bg-red hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium inline-block items-center">
+            Go Back to Home
+        </a>
+        
+        <div class="mt-8">
+            <p>If you'd like to reach out again, feel free to contact me:</p>
+            <p>Email: 
+                <span id="emailAddress" style="cursor:pointer; color:blue; text-decoration:underline;">arminmaddah.a@gmail.com</span>
+            </p>
+            <p>Phone: +491779005396</p> 
+            <div>
+                <!-- Social Media Links -->
+                <a href="https://api.whatsapp.com/send/?phone=%2B491779005396&text&type=phone_number" target="_blank" class='text-navy hover:text-blue'>WhatsApp</a> |
+                <a href="https://www.linkedin.com/in/armin-maddah-asl-493838219/" target="_blank" class='text-navy hover:text-blue'>LinkedIn</a> |
+                <a href="https://www.t.me/armin_2080" target="_blank" class='text-navy hover:text-blue'>Telegram</a> |
+                <a href="https://www.github.com/armin2080" target="_blank" class='text-navy hover:text-blue'>GitHub</a>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}
