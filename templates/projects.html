@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section id="projects" class="bg-cream text-navy py-16">
+    <div class="container mx-auto px-4 md:px-8 text-center">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8">My Projects</h2>
+        <p class="text-lg mb-8 max-w-xl mx-auto">
+            Here are some of my key projects that showcase my skills and expertise:
+        </p>
+
+        <!-- Projects Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {% for project in projects %}
+            <div class="project-card bg-white rounded-xl overflow-hidden shadow-md">
+                {% if forloop.counter %}
+                    {% if forloop.counter|add:-1|divisibleby:2 %}
+                    <div class="h-48 bg-navy relative">
+                        <div class="flex items-center justify-center h-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-teal project-icon"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                </path>
+                            </svg>
+                        </div>
+                        <div
+                            class="absolute inset-0 bg-navy bg-opacity-80 flex items-center justify-center project-overlay">
+                            <div class="text-center p-4">
+                                <p class="text-teal mb-4"> {{ project.preview }}</p>
+                                <a href="{{ project.link }}" target="_blank"
+                                    class="inline-block bg-teal text-navy px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 transition-colors">
+                                    View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% else %}
+                    <div class="h-48 bg-blue relative">
+                        <div class="flex items-center justify-center h-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-cream project-icon"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z">
+                                </path>
+                            </svg>
+                        </div>
+                        <div
+                            class="absolute inset-0 bg-blue bg-opacity-80 flex items-center justify-center project-overlay">
+                            <div class="text-center p-4">
+                                <p class="text-cream mb-4">{{ second_project.preview }}</p>
+                                <a href="{{ second_project.link }}" target="_blank"
+                                    class="inline-block bg-cream text-blue px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 transition-colors">
+                                    View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% endif %}
+                {% endif %}
+
+                
+                <div class="p-6">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-xl font-semibold text-navy">{{ project.name }}</h3>
+                        {% if forloop.counter %}
+                            {% if forloop.counter|add:-1|divisibleby:2 %}
+                                <!-- Even index -->
+                                <span class="bg-blue text-xs text-white px-2 py-1 rounded">{{ project.category }}</span>
+                            {% else %}
+                                <!-- Odd index -->
+                                <span class='bg-red text-xs text-white px-2 py-1 rounded'>{{ project.category }}</span> 
+                            {% endif %}
+                        {% endif %}
+
+                    </div>
+                    <p class="text-gray-700 mb-4 text-left">{{ project.description }}</p>
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        {% for skill in project.skills_used.all %}
+                        <span class="bg-teal bg-opacity-20 text-blue text-xs px-2 py-1 rounded">{{ skill.name }}</span>
+                        {% empty %}
+                        <li>No skills associated with this project.</li>
+                        {% endfor %}
+                    </div>
+                    <a href="{{ project.link }}" target="_blank" class="text-blue hover:text-navy font-medium flex items-center">
+                        View project
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-1" viewBox="0 0 20 20"
+                            fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                clip-rule="evenodd"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+</section>
+{% endblock %}

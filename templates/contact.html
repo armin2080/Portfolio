@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section id="contact" class="bg-teal text-navy py-16">
+    <div class="container mx-auto px-4 md:px-8 text-center">
+        <h2 class="text-3xl md:text-4xl font-bold mb-4">Get in Touch</h2>
+        <p class="text-lg mb-8 max-w-2xl mx-auto">
+            I'm always open to discussing new projects, creative ideas, or opportunities to be part of your vision.
+        </p>
+        
+        <!-- Contact Form -->
+        <form id="contactForm" method="POST" action="{% url 'contact' %}" 
+              class="bg-cream p-6 rounded-lg shadow-md max-w-md mx-auto"> <!-- Centered and limited width -->
+            {% csrf_token %}
+            <input type="text" name="name" placeholder="Your Name" required 
+                   class="w-full p-3 mb-4 border rounded border-gray-300 focus:outline-none focus:ring focus:ring-blue">
+            <input type="email" name="email" placeholder="Your Email" required 
+                   class="w-full p-3 mb-4 border rounded border-gray-300 focus:outline-none focus:ring focus:ring-blue">
+            <textarea name="message" placeholder="Your Message" rows="4"
+                      class="w-full p-3 mb-4 border rounded border-gray-300 focus:outline-none focus:ring focus:ring-blue"></textarea>
+            <button type="submit"
+                    class="btn-primary bg-red hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium flex items-center">
+                Send Message
+            </button>
+        </form>
+
+        <!-- Contact Information -->
+        <div class="mt-8">
+            <p>If you'd like to reach out again, feel free to contact me:</p>
+            <p>Email: 
+                <span id="emailAddress" style="cursor:pointer; color:blue; text-decoration:underline;">arminmaddah.a@gmail.com</span>
+            </p>
+            <p>Phone: +491779005396</p> 
+            <div>
+                <!-- Social Media Links -->
+                <a href="https://api.whatsapp.com/send/?phone=%2B491779005396&text&type=phone_number" target="_blank" class='text-navy hover:text-blue'>WhatsApp</a> |
+                <a href="https://www.linkedin.com/in/armin-maddah-asl-493838219/" target="_blank" class='text-navy hover:text-blue'>LinkedIn</a> |
+                <a href="https://www.t.me/armin_2080" target="_blank" class='text-navy hover:text-blue'>Telegram</a> |
+                <a href="https://www.github.com/armin2080" target="_blank" class='text-navy hover:text-blue'>GitHub</a>
+            </div>
+        </div>
+
+    </div>
+</section>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+    const emailElement = document.getElementById("emailAddress");
+
+    emailElement.addEventListener("click", function () {
+        // Create a temporary textarea element
+        const textarea = document.createElement("textarea");
+        textarea.value = "arminmaddah.a@gmail.com"; // Your email here
+        document.body.appendChild(textarea);
+        
+        // Select the text in the textarea
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // For mobile devices
+
+        // Copy the text inside the textarea to clipboard
+        document.execCommand("copy");
+
+        // Remove the temporary textarea from DOM
+        document.body.removeChild(textarea);
+
+        // Optionally, show feedback to user (e.g., alert or message)
+        alert("Email copied to clipboard!");
+        });
+    });
+</script>
+{% endblock %}
