@@ -10,27 +10,32 @@
                 <div class="relative">
                     <div
                         class="w-48 h-48 md:w-56 md:h-56 rounded-full overflow-hidden border-4 border-teal shadow-lg profile-image">
-                        <!-- SVG placeholder for profile image -->
-                        <img src="media/img/profile.jpg" alt="Profile Picture" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
+                        {% if profile and profile.profile_picture %}
+                            <img src="{{ profile.profile_picture.url }}" alt="Profile Picture" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
+                        {% else %}
+                            <img src="/media/img/profile.jpg" alt="Profile Picture" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
+                        {% endif %}
                     </div>
+                    {% if profile and profile.available_for_hire %}
                     <div
                         class="absolute -bottom-2 -right-2 bg-red text-cream text-xs font-bold px-3 py-1 rounded-full transition-transform duration-300 hover:scale-105">
                         Available for hire
                     </div>
+                    {% endif %}
                 </div>
             </div>
 
             <!-- Hero Content -->
             <div class="w-full md:w-3/5 md:pl-12">
                 <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-navy">
-                    Hi, I'm <span class="gradient-text">Armin</span><br>
-                    <span class="text-blue">Data Scientist &amp; Developer</span>
+                    Hi, I'm <span class="gradient-text">{% if profile %}{{ profile.name }}{% else %}Armin{% endif %}</span><br>
+                    <span class="text-blue">{% if profile %}{{ profile.title }}{% else %}Data Scientist &amp; Developer{% endif %}</span>
                 </h1>
 
                 <p class="text-lg text-gray-700 mb-6">
-                    I transform complex data into actionable insights and build intelligent solutions.
+                    {% if profile %}{{ profile.bio }}{% else %}I transform complex data into actionable insights and build intelligent solutions.
                     With expertise in machine learning and software development, I help businesses make
-                    data-driven decisions that drive growth.
+                    data-driven decisions that drive growth.{% endif %}
                 </p>
 
                 <!-- Quick Links -->
