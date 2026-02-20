@@ -1,6 +1,29 @@
 from django.contrib import admin
-from .models import Skill, Project, Education, WorkExperience, Certificate
+from .models import Skill, Project, Education, WorkExperience, Certificate, Profile
 
+
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = ('name', 'title', 'available_for_hire', 'updated_at')
+    fieldsets = (
+        ('Personal Information', {
+            'fields': ('name', 'title', 'bio')
+        }),
+        ('Profile Picture', {
+            'fields': ('profile_picture',)
+        }),
+        ('Status', {
+            'fields': ('available_for_hire',)
+        }),
+    )
+
+    def has_add_permission(self, request):
+        # Allow adding only if no profile exists
+        return not Profile.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        # Prevent deletion of profile
+        return False
 
 
 admin.site.register(WorkExperience)
