@@ -1,6 +1,29 @@
 from django.db import models
 from django.utils import timezone
+
 # Create your models here.
+class Profile(models.Model):
+    name = models.CharField(max_length=100, default="Armin")
+    title = models.CharField(max_length=200, default="Data Scientist & Developer")
+    bio = models.TextField(default="I transform complex data into actionable insights and build intelligent solutions.")
+    profile_picture = models.ImageField(upload_to='profile/', blank=True, null=True)
+    available_for_hire = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Profile"
+        verbose_name_plural = "Profile"
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        # Ensure only one profile exists
+        if not self.pk and Profile.objects.exists():
+            raise ValueError("Only one profile can exist")
+        return super(Profile, self).save(*args, **kwargs)
+
 class Skill(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()
