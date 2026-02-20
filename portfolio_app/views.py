@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .models import Skill, Project, Education, WorkExperience, Certificate
+from .models import Skill, Project, Education, WorkExperience, Certificate, Profile
 from django.core.mail import send_mail
 from django.shortcuts import render
 from .forms import ContactForm
@@ -10,9 +10,13 @@ from .forms import ContactForm
 def index(req):
     skills = Skill.objects.all().order_by('-proficiency')[:3]
     projects = Project.objects.all().order_by('-date')[:3]
+    profile = Profile.objects.first()  # Get the profile (only one should exist)
 
-
-    return render(req, 'homepage.html',{'skills': skills, 'projects': projects})
+    return render(req, 'homepage.html', {
+        'skills': skills,
+        'projects': projects,
+        'profile': profile
+    })
 
 
 def contact_view(req):
