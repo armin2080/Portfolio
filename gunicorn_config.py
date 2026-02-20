@@ -1,15 +1,15 @@
-import multiprocessing
-
 # Gunicorn configuration file
+# Optimized for low-memory devices (e.g., Raspberry Pi with 512MB RAM)
 
 # Server socket
 bind = "0.0.0.0:8000"
-backlog = 2048
+backlog = 512
 
 # Worker processes
-workers = multiprocessing.cpu_count() * 2 + 1
+# Reduced for low-memory devices (e.g., Raspberry Pi with 512MB RAM)
+workers = 2
 worker_class = "sync"
-worker_connections = 1000
+worker_connections = 500
 timeout = 30
 keepalive = 2
 
