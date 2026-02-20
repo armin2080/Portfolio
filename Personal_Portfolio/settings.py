@@ -28,6 +28,15 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# CSRF protection for domains behind proxy (Cloudflare)
+CSRF_TRUSTED_ORIGINS = [
+    'https://armin2080.de',
+    'https://www.armin2080.de'
+]
+
+# Help Django understand it's behind a proxy (Cloudflare)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # Application definition
 
