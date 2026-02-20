@@ -1,3 +1,25 @@
 /media/
-/static/
+/static/*
+!/static/.gitkeep
 db.sqlite3
+/env/
+
+# Docker
+.env
+*.log
+/staticfiles/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
