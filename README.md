@@ -38,6 +38,12 @@ Clone the repository:
    git clone git@github.com:armin2080/Portfolio.git
    ```
 
+### Raspberry Pi deployment
+
+For a lightweight production setup, use the Gunicorn systemd deployment in
+[SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md). The service is enabled at boot and
+automatically restarts after application failures.
+
 ### How to Use
 
 Once the website is running, you can navigate through different sections using the menu bar at the top of each page:
@@ -51,4 +57,3 @@ Once the website is running, you can navigate through different sections using t
 **Projects Page:** Showcase of projects I've completed.
 
 **Contact Page:** Fill out the form to get in touch or download my resume.
-

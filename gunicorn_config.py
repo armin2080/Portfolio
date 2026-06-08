@@ -1,16 +1,18 @@
+import os
+
 # Gunicorn configuration file
 # Optimized for low-memory devices (e.g., Raspberry Pi with 512MB RAM)
 
 # Server socket
-bind = "0.0.0.0:8000"
+bind = os.getenv("GUNICORN_BIND", "0.0.0.0:80")
 backlog = 512
 
 # Worker processes
 # Reduced for low-memory devices (e.g., Raspberry Pi with 512MB RAM)
-workers = 2
+workers = int(os.getenv("GUNICORN_WORKERS", "1"))
 worker_class = "sync"
 worker_connections = 500
-timeout = 30
+timeout = int(os.getenv("GUNICORN_TIMEOUT", "30"))
 keepalive = 2
 
 # Logging
