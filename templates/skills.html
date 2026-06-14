@@ -1,7 +1,11 @@
 {% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block title %}Skills{% endblock %}
+{% block meta_description %}Explore the technical and soft skills of Armin Maddah Asl, including Python, Machine Learning, Django, and more.{% endblock %}
 
 {% block content %}
-<section id="skills" class="bg-cream text-navy py-16">
+<section id="skills" class="bg-cream text-navy py-16 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8 text-center">
         <h2 class="text-3xl md:text-4xl font-bold mb-8">My Skills</h2>
         <p class="text-lg mb-8 max-w-xl mx-auto">
@@ -23,10 +27,8 @@
                     </div>
                     <h3 class="text-xl font-semibold text-navy">{{ skill.name }}</h3>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div class="bg-blue h-2.5 rounded-full" style="width: {{ skill.proficiency }}%"></div>
-                </div>
-                <p class="mt-4 text-gray-700 text-left">{{ skill.description }}</p>
+                <p class="text-sm text-teal font-medium mb-3">{{ skill.start_date|years_since_display }} experience</p>
+                <p class="mt-2 text-gray-700 text-left">{{ skill.description }}</p>
 
             </div>
             {% endfor %}
