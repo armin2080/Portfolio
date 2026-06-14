@@ -19,10 +19,29 @@ from django.urls import include, path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
+from django.contrib.sitemaps.views import sitemap
+from django.http import HttpResponse
+from portfolio_app.sitemaps import StaticViewSitemap
+
+sitemaps = {
+    "static": StaticViewSitemap,
+}
+
+
+def robots_txt(request):
+    lines = [
+        "User-agent: *",
+        "Disallow: /admin/",
+        "Allow: /",
+        f"Sitemap: https://armin2080.de/sitemap.xml",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('portfolio_app.urls'))
+    path('', include('portfolio_app.urls')),
+    path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
+    path('robots.txt', robots_txt, name='robots_txt'),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 # This small, single-service deployment serves uploaded media through Django.

@@ -1,21 +1,20 @@
 from django.shortcuts import render
-from .models import Skill, Project, Education, WorkExperience, Certificate, Profile
+from .models import Skill, Project, Education, WorkExperience, Certificate, Profile, Category
 from django.core.mail import send_mail
 from django.shortcuts import render
 from .forms import ContactForm
+from django.conf import settings
 
-
-# Create your views here.
 
 def index(req):
-    skills = Skill.objects.all().order_by('-proficiency')[:3]
-    projects = Project.objects.all().order_by('-date')[:3]
-    profile = Profile.objects.first()  # Get the profile (only one should exist)
+    skills = Skill.objects.all()[:3]
+    projects = Project.objects.all()[:3]
+    profile = Profile.objects.first()
 
     return render(req, 'homepage.html', {
         'skills': skills,
         'projects': projects,
-        'profile': profile
+        'profile': profile,
     })
 
 
@@ -27,15 +26,16 @@ def contact_view(req):
             email = form.cleaned_data['email']
             message = form.cleaned_data['message']
 
+            full_message = f"New message from: {name} ({email})\n\n{message}"
             send_mail(
-                subject=f'New message from {name} | {email}',
-                message=message,
-                from_email=email,
-                recipient_list=['arminmaddah.a@gmail.com'], 
+                subject=f'Portfolio: New message from {name}',
+                message=full_message,
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=['arminmaddah.a@gmail.com'],
             )
 
             return render(req, 'success.html')
-            
+
     else:
         form = ContactForm()
 
@@ -43,18 +43,36 @@ def contact_view(req):
 
 
 def skills_view(req):
-    skills = Skill.objects.all().order_by('-proficiency')
+    skills = Skill.objects.all()
     return render(req, 'skills.html', {'skills': skills})
 
+
 def projects_view(req):
-    projects = Project.objects.all().order_by('-date')
-    return render(req, 'projects.html', {'projects': projects})
+    category_slug = req.GET.get('category', '')
+    projects = Project.objects.all()
+    categories = Category.objects.all()
+
+    if category_slug:
+        projects = projects.filter(category__slug=category_slug)
+
+    return render(req, 'projects.html', {
+        'projects': projects,
+        'categories': categories,
+        'active_category': category_slug,
+    })
 
 
 def resume_view(req):
-    educations = reversed(Education.objects.all())
-    work_experiences = reversed(WorkExperience.objects.all())
-    skills = Skill.objects.all().order_by('-proficiency')
-    certificates = Certificate.objects.all().order_by('-issue_date')
+    profile = Profile.objects.first()
+    educations = Education.objects.all()
+    work_experiences = WorkExperience.objects.all()
+    skills = Skill.objects.all()
+    certificates = Certificate.objects.all()
 
-    return render(req, 'resume.html', {'educations': educations , 'experiences': work_experiences , 'skills': skills, 'certificates': certificates})
+    return render(req, 'resume.html', {
+        'profile': profile,
+        'educations': educations,
+        'experiences': work_experiences,
+        'skills': skills,
+        'certificates': certificates,
+    })
