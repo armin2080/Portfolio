@@ -23,3 +23,4 @@ ENV/
 .idea/
 *.swp
 *.swo
+portfolio_db
