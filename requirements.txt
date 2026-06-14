@@ -1,4 +1,6 @@
-django
+django>=5.0,<7.0
 Pillow
 gunicorn
 whitenoise
+python-dotenv
+python-dateutil
