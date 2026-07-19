@@ -1,4 +1,6 @@
 django>=5.0,<7.0
+django-recaptcha>=4.0
+django-ratelimit>=4.0
 Pillow
 gunicorn
 whitenoise

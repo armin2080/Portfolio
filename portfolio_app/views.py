@@ -4,6 +4,7 @@ from django.core.mail import send_mail
 from django.shortcuts import render
 from .forms import ContactForm
 from django.conf import settings
+from django_ratelimit.decorators import ratelimit
 
 
 def index(req):
@@ -18,9 +19,25 @@ def index(req):
     })
 
 
+@ratelimit(key='ip', rate='3/h', method='POST', block=False)
 def contact_view(req):
+    was_limited = getattr(req, 'limited', False)
+
     if req.method == 'POST':
         form = ContactForm(req.POST)
+
+        # Rate limit check
+        if was_limited:
+            return render(req, 'contact.html', {
+                'form': ContactForm(),
+                'rate_limited': True,
+            })
+
+        # Honeypot check — if filled, silently pretend success
+        honeypot_filled = req.POST.get('url', '') != ''
+        if honeypot_filled:
+            return render(req, 'success.html')
+
         if form.is_valid():
             name = form.cleaned_data['name']
             email = form.cleaned_data['email']
