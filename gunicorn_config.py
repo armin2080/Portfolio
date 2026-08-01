@@ -31,6 +31,12 @@ user = None
 group = None
 tmp_upload_dir = None
 
+# Control socket
+# ~/.gunicorn is read-only under the systemd sandbox (ProtectHome=read-only),
+# which caused "[Errno 30] Read-only file system" for gunicorn.ctl. Keep the
+# control socket in a location that is writable for the service.
+control_socket = "/var/lib/portfolio/gunicorn.ctl"
+
 # SSL (if needed)
 # keyfile = None
 # certfile = None
