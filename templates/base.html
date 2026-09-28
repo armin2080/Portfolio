@@ -227,9 +227,29 @@
         });
 
         // ─── Scroll-triggered fade-in animations ────────────
+        // Reveal a section as soon as ANY part of it is on screen.
+        //
+        // Do NOT switch this back to a ratio threshold (it used to be 0.1). The
+        // threshold is the fraction of the *element* that must be visible, so a
+        // section taller than 10x the viewport can never satisfy it and stays at
+        // opacity 0 forever — a blank page below the header. /projects/ with
+        // many cards is ~16,000px tall on a phone against an ~844px viewport
+        // (max ratio 0.05), which is what made it disappear on mobile while the
+        // 3-column desktop grid stayed short enough to pass.
+        function revealAnimatedElements() {
+            document.querySelectorAll('.animate-on-scroll')
+                .forEach(el => el.classList.add('visible'));
+        }
+
         function setupScrollAnimations() {
             const elements = document.querySelectorAll('.animate-on-scroll');
             if (elements.length === 0) return;
+
+            // Better to show everything than nothing.
+            if (!('IntersectionObserver' in window)) {
+                revealAnimatedElements();
+                return;
+            }
 
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
@@ -238,16 +258,26 @@
                         observer.unobserve(entry.target);
                     }
                 });
-            }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+            }, { threshold: 0, rootMargin: '0px 0px -50px 0px' });
 
             elements.forEach(el => observer.observe(el));
         }
 
+        // Content is hidden by CSS until this runs, so a failure here would blank
+        // the page: fall back to revealing everything.
+        function initScrollAnimations() {
+            try {
+                setupScrollAnimations();
+            } catch (error) {
+                revealAnimatedElements();
+            }
+        }
+
         // Run after DOM is ready (in case content is loaded dynamically)
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', setupScrollAnimations);
+            document.addEventListener('DOMContentLoaded', initScrollAnimations);
         } else {
-            setupScrollAnimations();
+            initScrollAnimations();
         }
 
         // ─── Back to top button ─────────────────────────────
@@ -270,7 +300,7 @@
         // ─── Re-observe new elements after dynamic content ───
         // Useful if pages add content after initial load (Turbolinks, HTMX, etc.)
         document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(setupScrollAnimations, 100);
+            setTimeout(initScrollAnimations, 100);
         });
     </script>
 
