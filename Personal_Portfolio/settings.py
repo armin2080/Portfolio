@@ -159,6 +159,26 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",  # Adjust based on where you store your static files.
 ]
 
+# Content-hashed filenames for static files.
+#
+# Static files are served with a long cache lifetime, so a browser or proxy can
+# hold a copy after the HTML has moved on. That combination broke the layout
+# badly once: a cached stylesheet still used the old theme token names while the
+# markup used the new ones, so the nav lost its background and images rendered
+# unstyled for anyone with the old copy.
+#
+# With a manifest, the filename changes whenever the content changes, so a stale
+# copy is simply never requested again. CompressedManifestStaticFilesStorage also
+# pre-compresses for WhiteNoise.
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'Personal_Portfolio.storage.LenientManifestStaticFilesStorage',
+    },
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
