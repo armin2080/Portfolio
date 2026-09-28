@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily cleanup of old portfolio page-view statistics
+
+[Timer]
+# Runs daily at 04:15 local time, with a little slack so it does not matter
+# if the device was asleep at exactly that moment.
+OnCalendar=*-*-* 04:15:00
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

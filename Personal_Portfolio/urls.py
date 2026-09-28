@@ -32,10 +32,24 @@ def robots_txt(request):
     lines = [
         "User-agent: *",
         "Disallow: /admin/",
+        "Disallow: /dashboard/",
         "Allow: /",
-        f"Sitemap: https://armin2080.de/sitemap.xml",
+        f"Sitemap: {settings.SITE_URL}/sitemap.xml",
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain")
+
+
+# Media is served by this small single-service deployment. Add a browser cache
+# lifetime so repeat visits do not re-download every uploaded image.
+MEDIA_CACHE_SECONDS = 60 * 60 * 24  # one day
+
+
+def serve_media(request, path):
+    response = serve(request, path, document_root=settings.MEDIA_ROOT)
+    if response.status_code == 200:
+        response["Cache-Control"] = f"public, max-age={MEDIA_CACHE_SECONDS}"
+    return response
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -46,5 +60,5 @@ urlpatterns = [
 
 # This small, single-service deployment serves uploaded media through Django.
 urlpatterns += [
-    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^media/(?P<path>.*)$', serve_media),
 ]

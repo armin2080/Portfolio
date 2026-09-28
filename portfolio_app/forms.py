@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django_recaptcha.fields import ReCaptchaField
 from django_recaptcha.widgets import ReCaptchaV3
 
@@ -13,4 +14,9 @@ class ContactForm(forms.Form):
         'tabindex': '-1',
         'style': 'position:absolute;left:-9999px;',
     }))
-    captcha = ReCaptchaField(widget=ReCaptchaV3)
+
+    if not settings.DEBUG:
+        # Skipped in development: without real keys the browser cannot produce a
+        # reCAPTCHA v3 token, which would block every local submission. Production
+        # always requires the captcha (see settings.RECAPTCHA_*).
+        captcha = ReCaptchaField(widget=ReCaptchaV3)

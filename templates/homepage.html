@@ -171,7 +171,7 @@
                         {% for skill in project.skills_used.all %}
                         <span class="bg-teal bg-opacity-20 text-blue text-xs px-2 py-1 rounded">{{ skill.name }}</span>
                         {% empty %}
-                        <li>No skills associated with this project.</li>
+                        <span class="text-gray-500 text-xs">No skills associated with this project.</span>
                         {% endfor %}
                     </div>
                     <a href="{{ project.link }}" target="_blank" class="text-blue hover:text-navy font-medium flex items-center">

@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block title %}Privacy{% endblock %}
+{% block meta_description %}How this website handles personal data: contact form messages, privacy-friendly visitor statistics, and third-party services.{% endblock %}
+
+{% block content %}
+<section class="bg-cream text-navy py-12">
+    <div class="container mx-auto px-4 md:px-8 max-w-3xl">
+
+        <h1 class="text-3xl md:text-4xl font-bold mb-2">Privacy Notice</h1>
+        <p class="text-sm text-gray-700 mb-10">
+            Information about how personal data is handled on this website,
+            as required by Art. 13 GDPR.
+        </p>
+
+        <div class="bg-white rounded-xl shadow-md p-6 md:p-8 space-y-8 text-gray-700 leading-relaxed">
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">1. Controller</h2>
+                <p>
+                    {% if global_profile %}{{ global_profile.name }}{% else %}Armin Maddah Asl{% endif %}<br>
+                    {% if global_profile.location %}{{ global_profile.location }}<br>{% endif %}
+                    Email: {% if global_profile %}{{ global_profile.email }}{% else %}arminmaddah.a@gmail.com{% endif %}
+                </p>
+                <p class="mt-2">
+                    This is a private, non-commercial portfolio website. There is no
+                    data protection officer, as the legal requirements for appointing
+                    one are not met.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">2. Hosting and server logs</h2>
+                <p>
+                    This website runs on a privately operated server. When you visit a
+                    page, the web server necessarily processes your IP address and
+                    User-Agent so that the page can be delivered to you. Access logs
+                    (IP address, timestamp, requested page, User-Agent) are kept for a
+                    short period for security and troubleshooting, and are then deleted.
+                </p>
+                <p class="mt-2">
+                    The website is delivered through the Cloudflare content delivery
+                    network, which acts as a reverse proxy. Cloudflare processes
+                    connection data as part of providing that service. See the
+                    <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener"
+                       class="text-blue hover:text-navy underline">Cloudflare privacy policy</a>.
+                </p>
+                <p class="mt-2">
+                    <strong>Legal basis:</strong> Art. 6(1)(f) GDPR — legitimate interest
+                    in operating a secure, functioning website.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">3. Contact form</h2>
+                <p>
+                    If you use the contact form, your name, email address, message and
+                    the IP address the message was sent from are stored so that I can
+                    read and reply to your enquiry. The message is also sent to me by
+                    email. If delivery fails, the stored copy ensures your message is
+                    not lost.
+                </p>
+                <p class="mt-2">
+                    <strong>Legal basis:</strong> Art. 6(1)(b) GDPR (steps taken at your
+                    request prior to a possible contract) and Art. 6(1)(f) GDPR
+                    (legitimate interest in receiving and answering enquiries).
+                </p>
+                <p class="mt-2">
+                    You may ask me to delete your message at any time; see section 8.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">4. Visitor statistics</h2>
+                <p>
+                    I record anonymous statistics about how this website is used, so I
+                    can see which content is useful. This runs on my own server and
+                    <strong>no data is sent to any analytics provider</strong>.
+                </p>
+                <p class="mt-3">The following is recorded for each page view:</p>
+                <ul class="list-disc list-inside space-y-1 mt-2">
+                    <li>the page requested and the time of the request;</li>
+                    <li>the referring website, if you arrived from one;</li>
+                    <li>the country, derived from the connection by Cloudflare;</li>
+                    <li>coarse technical information: device type (desktop/mobile/tablet), browser family and operating system family;</li>
+                    <li>whether the request came from an automated bot or crawler.</li>
+                </ul>
+                <p class="mt-3">
+                    <strong>No IP addresses are stored</strong> for statistics. To count
+                    how many different people visited on a given day, the IP address is
+                    combined with a secret value and today's date, and immediately
+                    reduced to a meaningless pseudonym. That pseudonym changes every
+                    day, so it cannot be used to recognise you on a later visit.
+                </p>
+                <p class="mt-2">
+                    <strong>No cookies,</strong> no device identifiers and no
+                    fingerprinting are used for statistics, and no data is shared with
+                    third parties. Because the statistics cannot be linked to you,
+                    consent is not required.
+                </p>
+                <p class="mt-2">
+                    Statistics are deleted after {{ retention_days }} days.
+                </p>
+                <p class="mt-2">
+                    <strong>Legal basis:</strong> Art. 6(1)(f) GDPR — legitimate interest
+                    in understanding the use of my own website, using data that is not
+                    personal to you.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">5. Cookies and local storage</h2>
+                <p>
+                    This website sets <strong>no tracking cookies</strong>. A single
+                    session cookie is created only if you sign in to the administration
+                    area, and it is strictly necessary for that login.
+                </p>
+                <p class="mt-2">
+                    Your preference for light or dark mode is stored locally in your
+                    browser and is never transmitted to the server.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">6. Third-party services</h2>
+                <ul class="list-disc list-inside space-y-2">
+                    <li>
+                        <strong>Google Fonts</strong> — the typeface used on this site is
+                        loaded from Google's servers. Your IP address is therefore
+                        transmitted to Google when a page loads. See the
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener"
+                           class="text-blue hover:text-navy underline">Google privacy policy</a>.
+                    </li>
+                    <li>
+                        <strong>Google reCAPTCHA</strong> — used on the contact form to
+                        stop spam. It may set cookies and transmits your IP address and
+                        usage data to Google. See the
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener"
+                           class="text-blue hover:text-navy underline">Google privacy policy</a>.
+                    </li>
+                </ul>
+                <p class="mt-2">
+                    <strong>Legal basis:</strong> Art. 6(1)(f) GDPR — legitimate interest
+                    in protecting the website from spam and abuse, and presenting it
+                    correctly.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">7. Data retention</h2>
+                <ul class="list-disc list-inside space-y-1">
+                    <li>Visitor statistics: {{ retention_days }} days.</li>
+                    <li>Contact form messages: until the enquiry is resolved, then deleted on request.</li>
+                    <li>Server access logs: a short period, then deleted automatically.</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">8. Your rights</h2>
+                <p>Under the GDPR you have the right to:</p>
+                <ul class="list-disc list-inside space-y-1 mt-2">
+                    <li>request access to the personal data held about you (Art. 15);</li>
+                    <li>have inaccurate data corrected (Art. 16);</li>
+                    <li>have your data deleted (Art. 17);</li>
+                    <li>have processing restricted (Art. 18);</li>
+                    <li>object to processing based on legitimate interest (Art. 21);</li>
+                    <li>receive your data in a portable format (Art. 20).</li>
+                </ul>
+                <p class="mt-3">
+                    To exercise any of these rights, contact
+                    {% if global_profile %}{{ global_profile.email }}{% else %}arminmaddah.a@gmail.com{% endif %}.
+                </p>
+                <p class="mt-2">
+                    You also have the right to lodge a complaint with a data protection
+                    supervisory authority. The authority responsible for this website
+                    is the one for the operator's place of residence in Germany.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold text-navy mb-2">9. Changes to this notice</h2>
+                <p>
+                    This notice may be updated if the website or its data processing
+                    changes. The version published here is always the current one.
+                </p>
+            </section>
+
+        </div>
+
+    </div>
+</section>
+{% endblock %}

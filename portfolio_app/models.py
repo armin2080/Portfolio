@@ -148,3 +148,68 @@ class Certificate(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ContactMessage(models.Model):
+    """A message submitted through the contact form.
+
+    Stored as well as emailed, so a mail outage never loses a message.
+    """
+
+    name = models.CharField(max_length=100)
+    email = models.EmailField()
+    message = models.TextField()
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Contact message"
+        verbose_name_plural = "Contact messages"
+
+    def __str__(self):
+        return f"{self.name} <{self.email}>"
+
+
+class PageView(models.Model):
+    """A single anonymous page view, used for the private dashboard.
+
+    Intentionally stores no personal data: no IP address, no cookies, no user
+    id. ``visitor_hash`` is a daily-rotating pseudonym (see
+    ``portfolio_app.analytics.visitor_hash``), so unique visitors can be counted
+    per day without being able to follow anyone across days.
+    """
+
+    class Device(models.TextChoices):
+        DESKTOP = 'desktop', 'Desktop'
+        MOBILE = 'mobile', 'Mobile'
+        TABLET = 'tablet', 'Tablet'
+        UNKNOWN = 'unknown', 'Unknown'
+
+    path = models.CharField(max_length=255, db_index=True)
+    viewed_at = models.DateTimeField(default=timezone.now, db_index=True)
+    country = models.CharField(
+        max_length=2, blank=True,
+        help_text="ISO country code from Cloudflare (blank when unknown)",
+    )
+    device_type = models.CharField(max_length=10, choices=Device.choices, blank=True)
+    browser = models.CharField(max_length=30, blank=True)
+    os = models.CharField(max_length=20, blank=True)
+    referrer = models.CharField(max_length=100, blank=True)
+    visitor_hash = models.CharField(
+        max_length=16, blank=True,
+        help_text="Rotates daily; cannot be used to track a visitor over time",
+    )
+    is_bot = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-viewed_at']
+        verbose_name = "Page view"
+        verbose_name_plural = "Page views"
+        indexes = [
+            models.Index(fields=['-viewed_at']),
+            models.Index(fields=['is_bot', '-viewed_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.path} @ {self.viewed_at:%Y-%m-%d %H:%M}"

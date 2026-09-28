@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+
+{% block title %}Visitor statistics{% endblock %}
+
+{% block content %}
+<section class="bg-cream text-navy py-12">
+    <div class="container mx-auto px-4 md:px-8">
+
+        <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
+            <div>
+                <h2 class="text-3xl md:text-4xl font-bold">Visitor statistics</h2>
+                <p class="text-gray-700 mt-1">
+                    Private to you. Anonymous, cookieless — no IP addresses are stored.
+                </p>
+            </div>
+            <a href="{% url 'index' %}" class="text-blue hover:text-navy font-medium">← Back to site</a>
+        </div>
+
+        {% if not analytics_enabled %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8" role="alert">
+            Tracking is currently disabled (ANALYTICS_ENABLED is False).
+        </div>
+        {% endif %}
+
+        <!-- Summary cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            <div class="bg-white rounded-xl shadow-md p-5">
+                <p class="text-sm text-gray-700">Views today</p>
+                <p class="text-3xl font-bold text-navy">{{ views_today }}</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-5">
+                <p class="text-sm text-gray-700">Visitors today</p>
+                <p class="text-3xl font-bold text-navy">{{ unique_today }}</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-5">
+                <p class="text-sm text-gray-700">Views ({{ window_days }} days)</p>
+                <p class="text-3xl font-bold text-navy">{{ views_window }}</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-5">
+                <p class="text-sm text-gray-700">Visitors ({{ window_days }} days)</p>
+                <p class="text-3xl font-bold text-navy">{{ unique_window }}</p>
+            </div>
+        </div>
+
+        <!-- Daily chart -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-10">
+            <h3 class="text-xl font-semibold text-navy mb-1">Views per day</h3>
+            <p class="text-sm text-gray-700 mb-6">Last {{ window_days }} days</p>
+            <div class="flex items-end justify-between gap-1 h-40">
+                {% for point in chart %}
+                <div class="flex-1 flex flex-col items-center justify-end h-full group"
+                     title="{{ point.day|date:'j M Y' }}: {{ point.views }} view{{ point.views|pluralize }}">
+                    <span class="text-xs text-gray-700 mb-1 opacity-0 group-hover:opacity-100">
+                        {{ point.views }}
+                    </span>
+                    <div class="w-full rounded-t bg-blue hover:bg-navy transition-colors"
+                         style="height: {{ point.percent }}%;"></div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="flex justify-between text-xs text-gray-700 mt-2">
+                <span>{{ chart.0.day|date:"j M" }}</span>
+                <span>Today</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+            <!-- Top pages -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h3 class="text-xl font-semibold text-navy mb-4">Most viewed pages</h3>
+                {% for row in top_pages %}
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
+                    <span class="text-gray-700 truncate mr-4">{{ row.path }}</span>
+                    <span class="font-semibold text-navy shrink-0">{{ row.views }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-700">No data yet.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Countries -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h3 class="text-xl font-semibold text-navy mb-1">Countries</h3>
+                <p class="text-sm text-gray-700 mb-4">From Cloudflare, no GeoIP database needed.</p>
+                {% for row in top_countries %}
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
+                    <span class="text-gray-700">{{ row.country }}</span>
+                    <span class="font-semibold text-navy">{{ row.views }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-700">No data yet.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Devices -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h3 class="text-xl font-semibold text-navy mb-4">Devices</h3>
+                {% for row in devices %}
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
+                    <span class="text-gray-700">{{ row.device_type|capfirst }}</span>
+                    <span class="font-semibold text-navy">{{ row.views }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-700">No data yet.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Browsers -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h3 class="text-xl font-semibold text-navy mb-4">Browsers</h3>
+                {% for row in browsers %}
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
+                    <span class="text-gray-700">{{ row.browser }}</span>
+                    <span class="font-semibold text-navy">{{ row.views }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-700">No data yet.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Operating systems -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h3 class="text-xl font-semibold text-navy mb-4">Operating systems</h3>
+                {% for row in operating_systems %}
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
+                    <span class="text-gray-700">{{ row.os }}</span>
+                    <span class="font-semibold text-navy">{{ row.views }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-700">No data yet.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Referrers -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h3 class="text-xl font-semibold text-navy mb-4">Traffic sources</h3>
+                {% for row in referrers %}
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
+                    <span class="text-gray-700 truncate mr-4">{{ row.referrer }}</span>
+                    <span class="font-semibold text-navy shrink-0">{{ row.views }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-700">No external referrers yet (direct visits or search engines only).</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Footnotes -->
+        <div class="bg-white rounded-xl shadow-md p-6 text-sm text-gray-700">
+            <h3 class="text-lg font-semibold text-navy mb-2">About these numbers</h3>
+            <ul class="list-disc list-inside space-y-1">
+                <li>Bots and crawlers are excluded from the figures above ({{ bot_views }} bot view{{ bot_views|pluralize }} recorded in total).</li>
+                <li>Your own visits are not counted while you are signed in to the admin.</li>
+                <li>"Visitors" counts a daily rotating pseudonym, so the same person is only counted once per day and cannot be followed across days.</li>
+                <li>Page views are deleted after {{ retention_days }} days (<code>manage.py purge_pageviews</code>).</li>
+                <li>{{ messages_count }} contact form message{{ messages_count|pluralize }} received — see
+                    <a href="{% url 'admin:portfolio_app_contactmessage_changelist' %}" class="text-blue hover:text-navy">Contact messages</a>.</li>
+                <li>Raw log:
+                    <a href="{% url 'admin:portfolio_app_pageview_changelist' %}" class="text-blue hover:text-navy">Page views</a>.</li>
+            </ul>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

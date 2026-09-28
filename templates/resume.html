@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% load static %}
 {% load custom_filters %}
 
 {% block title %}Resume{% endblock %}
@@ -21,22 +20,30 @@
                     {% if profile and profile.profile_picture %}
                 <img src="{{ profile.profile_picture.url }}" alt="{{ profile.name }}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
                 {% else %}
-                <img src="../media/img/profile2.jpg" alt="Armin Maddah Asl" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
+                <div class="w-full h-full bg-navy flex items-center justify-center">
+                    <span class="text-5xl text-teal font-bold">{{ profile.name|first|default:'A' }}</span>
+                </div>
                 {% endif %}
                 </div>
             </div>
 
-            <!-- Download Resume Button -->
+            {% if profile.resume_en or profile.resume_de %}
+            <!-- Download Resume Buttons (only shown when a file is uploaded) -->
             <div class="mt-1 text-center md:text-left">
-                <a href="{% if profile and profile.resume_en %}{{ profile.resume_en.url }}{% else %}{% static 'files/Resume.pdf' %}{% endif %}" download
+                {% if profile.resume_en %}
+                <a href="{{ profile.resume_en.url }}" download
                 class='btn-primary bg-red hover:bg-opacity-90 text-white px-4 py-2 rounded-lg mr-2'>
                 English CV file
                 </a>
-                <a href="{% if profile and profile.resume_de %}{{ profile.resume_de.url }}{% else %}{% static 'files/Lebenslauf.pdf' %}{% endif %}" download
+                {% endif %}
+                {% if profile.resume_de %}
+                <a href="{{ profile.resume_de.url }}" download
                 class='btn-primary bg-red hover:bg-opacity-90 text-white px-4 py-2 rounded-lg'>
                 German CV file
                 </a>
+                {% endif %}
             </div>
+            {% endif %}
         </header>
 
         <!-- Contact Information -->
@@ -119,8 +126,8 @@
                 <div class="flex flex-col md:flex-row md:justify-between mb-2">
                     <h3 class="text-xl font-semibold text-blue">{{ exp.role }}</h3>
                     <div class="text-gray-600 font-medium">
-                        <span class="text-red">{{ exp.company }}</span> | 0{{ exp.start_date.month }}.{{ exp.start_date.year }} -
-                        {% if exp.end_date %} 0{{ exp.end_date.month }}.{{ exp.end_date.year }} {% else %} Present {% endif %}
+                        <span class="text-red">{{ exp.company }}</span> | {{ exp.start_date|date:"m.Y" }} -
+                        {% if exp.end_date %} {{ exp.end_date|date:"m.Y" }} {% else %} Present {% endif %}
                     </div>
                 </div>
                 <ul class="list-disc list-inside text-gray-700 ml-4">
