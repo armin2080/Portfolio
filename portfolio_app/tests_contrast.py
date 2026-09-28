@@ -2,6 +2,7 @@
 
 import json
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
@@ -21,6 +22,24 @@ from .models import (
     COLOR_ROLES,
     Theme,
 )
+
+
+# A palette in which every check passes: black text on white surfaces, white
+# text on black surfaces. It must set EVERY role referenced by CONTRAST_CHECKS —
+# an omitted role falls back to the model default, which can fail a check and
+# make an otherwise "clean" palette warn (tested below).
+CLEAN_PALETTE = {
+    'primary': '#000000',
+    'inverse': '#FFFFFF',
+    'accent': '#FFFFFF',
+    'emphasis': '#000000',
+    'page': '#FFFFFF',
+    'surface': '#FFFFFF',
+    'heading': '#000000',
+    'ink': '#000000',
+    'muted': '#000000',
+    'border': '#000000',
+}
 
 
 # ---------------------------------------------------------------------------
@@ -66,12 +85,7 @@ class ContrastMathTests(TestCase):
 # ---------------------------------------------------------------------------
 class PaletteWarningTests(TestCase):
     def _clean_palette(self):
-        """Every checked pair is black-on-white or white-on-black."""
-        return {
-            'primary': '#000000', 'inverse': '#FFFFFF', 'accent': '#FFFFFF',
-            'page': '#FFFFFF', 'ink': '#000000', 'surface': '#FFFFFF',
-            'muted': '#000000', 'emphasis': '#000000',
-        }
+        return dict(CLEAN_PALETTE)
 
     def test_a_palette_with_no_problems_returns_nothing(self):
         self.assertEqual(palette_contrast_warnings(self._clean_palette()), [])
@@ -121,6 +135,16 @@ class PaletteWarningTests(TestCase):
                 self.assertGreater(minimum, 1.0)
                 self.assertTrue(consequence)
 
+    def test_clean_palette_covers_every_checked_role(self):
+        # Regression guard: an omitted role falls back to a model default, which
+        # made a supposedly-clean palette report warnings once a `heading` check
+        # was added.
+        referenced = set()
+        for _label, fg, bg, _minimum, _c in CONTRAST_CHECKS:
+            referenced.update((fg, bg))
+        missing = referenced - set(CLEAN_PALETTE)
+        self.assertEqual(missing, set(), f'CLEAN_PALETTE is missing: {sorted(missing)}')
+
     def test_cards_are_not_flagged_for_lacking_a_colour_step(self):
         # Regression guard: cards are separated by a shadow, so a surface/page
         # contrast rule would flag the shipped design as broken.
@@ -128,6 +152,39 @@ class PaletteWarningTests(TestCase):
             with self.subTest(palette=palette['page']):
                 labels = {w['label'] for w in palette_contrast_warnings(palette)}
                 self.assertNotIn('Cards', labels)
+
+
+class AccentAsTextTests(TestCase):
+    """Guards a real bug.
+
+    `accent` is a pale "on-dark" colour: it reads well on the navigation bar and
+    on coloured project panels, but is nearly invisible as text on a light card.
+    The years-of-experience caption used `text-accent` and measured 1.03:1
+    against a light card — effectively unreadable.
+
+    Only the caption is checked here. A general "is this element on a light
+    background?" rule would need real ancestor/rendered information — `text-accent`
+    is correct in many places (initials inside the navy avatar, icons inside navy
+    panels) where the dark background is on a parent element, so a template-text
+    heuristic produces false positives. The semantic guard is the palette-level
+    contrast checker instead: readable on-light text must use `heading`, `ink` or
+    `muted`, and those pairs are all checked.
+    """
+
+    # The three places that render the years-of-experience caption.
+    def test_skill_captions_use_a_readable_on_light_token(self):
+        for template in ('homepage.html', 'skills.html', 'resume.html'):
+            source = (settings.BASE_DIR / 'templates' / template).read_text()
+            lines = [line for line in source.splitlines() if 'years_since_display' in line]
+            with self.subTest(template=template):
+                self.assertTrue(lines, 'expected a years-since caption in this template')
+            for line in lines:
+                with self.subTest(template=template, line=line.strip()[:70]):
+                    self.assertNotIn('text-accent', line)
+                    self.assertTrue(
+                        'text-heading' in line or 'text-ink' in line or 'text-muted' in line,
+                        'caption does not use a readable on-light token',
+                    )
 
 
 class ShippedDefaultsTests(TestCase):
@@ -203,22 +260,8 @@ class ContrastReportAdminTests(TestCase):
     def test_change_form_says_ok_when_a_palette_is_clean(self):
         theme = Theme.objects.create(name='Clean')
         Theme.objects.filter(pk=theme.pk).update(
-            **{
-                f'light_{role}': value
-                for role, value in (
-                    ('primary', '#000000'), ('inverse', '#FFFFFF'), ('accent', '#FFFFFF'),
-                    ('page', '#FFFFFF'), ('ink', '#000000'), ('surface', '#FFFFFF'),
-                    ('muted', '#000000'), ('emphasis', '#000000'),
-                )
-            },
-            **{
-                f'dark_{role}': value
-                for role, value in (
-                    ('primary', '#000000'), ('inverse', '#FFFFFF'), ('accent', '#FFFFFF'),
-                    ('page', '#FFFFFF'), ('ink', '#000000'), ('surface', '#FFFFFF'),
-                    ('muted', '#000000'), ('emphasis', '#000000'),
-                )
-            },
+            **{f'light_{role}': value for role, value in CLEAN_PALETTE.items()},
+            **{f'dark_{role}': value for role, value in CLEAN_PALETTE.items()},
         )
         response = self.client.get(
             reverse('admin:portfolio_app_theme_change', args=[theme.pk])

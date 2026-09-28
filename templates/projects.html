@@ -6,7 +6,8 @@
 {% block content %}
 <section id="projects" class="bg-page text-heading py-16 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8 text-center">
-        <h2 class="text-3xl md:text-4xl font-bold mb-8">My Projects</h2>
+        <h2 class="text-3xl md:text-4xl font-bold mb-0 md:mb-8">My Projects</h2>
+        <span class="heading-rule block md:hidden mx-auto mb-8" aria-hidden="true"></span>
         <p class="text-lg mb-8 max-w-xl mx-auto">
             Here are some of my key projects that showcase my skills and expertise:
         </p>
@@ -29,7 +30,7 @@
         <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
             {% for project in projects %}
             <div class="project-card bg-surface rounded-xl overflow-hidden shadow-md">
-                <div class="h-48 relative overflow-hidden">
+                <div class="h-40 md:h-48 relative overflow-hidden">
                     {% if project.image %}
                     <img src="{{ project.image.url }}" alt="{{ project.name }}"
                          class="w-full h-full object-cover transition-transform duration-300 hover:scale-110">
@@ -70,7 +71,7 @@
                         <span class="text-muted text-xs">No skills associated with this project.</span>
                         {% endfor %}
                     </div>
-                    <a href="{{ project.link }}" target="_blank" class="text-secondary hover:text-heading font-medium flex items-center">
+                    <a href="{{ project.link }}" target="_blank" class="text-secondary hover:text-heading font-medium flex items-center active:opacity-70">
                         View project
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-1" viewBox="0 0 20 20"
                             fill="currentColor">

@@ -152,7 +152,7 @@
                 {% for skill in skills %}
                 <div class="flex items-center justify-between py-1">
                     <span class="text-ink font-medium">{{ skill.name }}</span>
-                    <span class="text-sm text-accent font-medium">{{ skill.start_date|years_since_display }}</span>
+                    <span class="text-sm text-heading font-medium">{{ skill.start_date|years_since_display }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -188,7 +188,7 @@
                 {% for cert in certificates %}
                     <div class="border-l-4 border-accent pl-4 py-2">
                         <h3 class="text-lg font-semibold text-secondary">
-                            <a href="{{ cert.link }}" target="_blank" class="hover:text-accent">{{ cert.name }}</a>
+                            <a href="{{ cert.link }}" target="_blank" class="hover:text-heading">{{ cert.name }}</a>
                         </h3>
                         <p class="text-muted">{{ cert.institution }} | {{ cert.issue_date.year }}</p>
                     </div>
