@@ -58,23 +58,16 @@
                 <div class="p-6">
                     <div class="flex justify-between items-start mb-2">
                         <h3 class="text-xl font-semibold text-navy">{{ project.name }}</h3>
-                        {% if forloop.counter %}
-                            {% if forloop.counter|add:-1|divisibleby:2 %}
-                                <!-- Even index -->
-                                <span class="bg-blue text-xs text-white px-2 py-1 rounded">{{ project.category.name }}</span>
-                            {% else %}
-                                <!-- Odd index -->
-                                <span class='bg-red text-xs text-white px-2 py-1 rounded'>{{ project.category.name }}</span> 
-                            {% endif %}
+                        {% if project.category %}
+                        <span class="{% cycle 'bg-blue' 'bg-red' %} text-xs text-white px-2 py-1 rounded">{{ project.category.name }}</span>
                         {% endif %}
-
                     </div>
                     <p class="text-gray-700 mb-4 text-left">{{ project.description }}</p>
                     <div class="flex flex-wrap gap-2 mb-4">
                         {% for skill in project.skills_used.all %}
                         <span class="bg-teal bg-opacity-20 text-blue text-xs px-2 py-1 rounded">{{ skill.name }}</span>
                         {% empty %}
-                        <li>No skills associated with this project.</li>
+                        <span class="text-gray-500 text-xs">No skills associated with this project.</span>
                         {% endfor %}
                     </div>
                     <a href="{{ project.link }}" target="_blank" class="text-blue hover:text-navy font-medium flex items-center">

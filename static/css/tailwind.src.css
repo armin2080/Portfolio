@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --------------------------------------------------------------------------
+   Custom styles (previously inlined in templates/base.html).
+   Kept as plain CSS so they do not depend on the Tailwind CDN runtime.
+   -------------------------------------------------------------------------- */
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #F1FAEE;
+}
+
+.profile-image {
+    background-size: cover;
+    background-position: center;
+}
+
+.skill-badge {
+    transition: all 0.3s ease;
+}
+
+.skill-badge:hover {
+    transform: translateY(-5px);
+}
+
+.btn-primary {
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(29, 53, 87, 0.2);
+}
+
+.gradient-text {
+    background: linear-gradient(90deg, #1D3557, #457B9D);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.project-card {
+    transition: all 0.3s ease;
+}
+
+.project-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.project-card .project-overlay {
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.project-card:hover .project-overlay {
+    opacity: 1;
+}
+
+.project-card:hover .project-icon {
+    transform: scale(1.1);
+}
+
+/* Dark mode overrides */
+.dark body,
+.dark .bg-cream {
+    background-color: #1a1a2e;
+}
+
+.dark .bg-white {
+    background-color: #16213e;
+}
+
+.dark .text-gray-700 {
+    color: #cbd5e1;
+}
+
+.dark .text-navy {
+    color: #e2e8f0;
+}
+
+.dark .border-gray-300 {
+    border-color: #334155;
+}
+
+.dark .bg-gray-200 {
+    background-color: #334155;
+}
+
+.dark .bg-teal {
+    background-color: #1a1a2e;
+}
+
+.dark .bg-opacity-20 {
+    background-color: rgba(26, 26, 46, 0.8);
+}
+
+.dark .bg-navy {
+    background-color: #0f3460;
+}
+
+.dark .shadow-md,
+.dark .shadow-lg {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Scroll animations.
+   Gated on the `js` class (set by an inline script in base.html) so that all
+   content stays visible if JavaScript is unavailable, blocked, or fails. */
+.js .animate-on-scroll {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.js .animate-on-scroll.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Back to top button */
+#back-to-top {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 44px;
+    height: 44px;
+    background-color: #1D3557;
+    color: #F1FAEE;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+#back-to-top.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+#back-to-top:hover {
+    background-color: #457B9D;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+}
+
+.dark #back-to-top {
+    background-color: #0f3460;
+}
+
+.dark #back-to-top:hover {
+    background-color: #457B9D;
+}

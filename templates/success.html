@@ -18,19 +18,33 @@
         
         <div class="mt-8">
             <p>If you'd like to reach out again, feel free to contact me:</p>
+            {% with email=global_profile.email|default:"arminmaddah.a@gmail.com" phone=global_profile.phone|default:"+49 177 9005396" %}
             <p>Email: 
-                <span id="emailAddress" style="cursor:pointer; color:blue; text-decoration:underline;">arminmaddah.a@gmail.com</span>
+                <span id="emailAddress" data-email="{{ email }}" style="cursor:pointer; color:blue; text-decoration:underline;">{{ email }}</span>
             </p>
-            <p>Phone: +491779005396</p> 
+            <p>Phone: {{ phone }}</p>
+            {% endwith %}
             <div>
                 <!-- Social Media Links -->
-                <a href="https://api.whatsapp.com/send/?phone=%2B491779005396&text&type=phone_number" target="_blank" class='text-navy hover:text-blue'>WhatsApp</a> |
-                <a href="https://www.linkedin.com/in/armin-maddah-asl-493838219/" target="_blank" class='text-navy hover:text-blue'>LinkedIn</a> |
-                <a href="https://www.t.me/armin_2080" target="_blank" class='text-navy hover:text-blue'>Telegram</a> |
-                <a href="https://www.github.com/armin2080" target="_blank" class='text-navy hover:text-blue'>GitHub</a>
+                {% if global_profile.whatsapp_url %}<a href="{{ global_profile.whatsapp_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>WhatsApp</a> | {% endif %}
+                {% if global_profile.linkedin_url %}<a href="{{ global_profile.linkedin_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>LinkedIn</a> | {% endif %}
+                {% if global_profile.telegram_url %}<a href="{{ global_profile.telegram_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>Telegram</a> | {% endif %}
+                {% if global_profile.github_url %}<a href="{{ global_profile.github_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>GitHub</a>{% endif %}
             </div>
         </div>
 
     </div>
 </section>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const emailElement = document.getElementById("emailAddress");
+        if (emailElement) {
+            emailElement.addEventListener("click", function () {
+                navigator.clipboard.writeText(emailElement.dataset.email).then(function () {
+                    alert("Email copied to clipboard!");
+                });
+            });
+        }
+    });
+</script>
 {% endblock %}

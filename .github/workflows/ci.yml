@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    name: Tests and deployment checks
+    runs-on: ubuntu-latest
+    env:
+      # Long enough to satisfy Django's security.W009 check. CI only.
+      SECRET_KEY: ci-only-9f2b7c1e4a6d8f0b3c5e7a9d1f2b4c6e8a0d3f5b7c9e1a2d4f6b8c0e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: python manage.py test
+
+      - name: Run deployment checks
+        env:
+          # Console backend keeps the "email not configured" warning out of CI.
+          DEBUG: 'False'
+          EMAIL_BACKEND: console
+          ALLOWED_HOSTS: armin2080.de,www.armin2080.de
+          RECAPTCHA_PUBLIC_KEY: ci-dummy-recaptcha-site-key
+          RECAPTCHA_PRIVATE_KEY: ci-dummy-recaptcha-secret-key
+        run: python manage.py check --deploy --fail-level WARNING
+
+  css:
+    name: CSS bundle is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild Tailwind and compare
+        run: |
+          ./scripts/build-css.sh
+          git diff --exit-code -- static/css/tailwind.css

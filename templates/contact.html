@@ -18,20 +18,54 @@
         </div>
         {% endif %}
         <form id="contactForm" method="POST" action="{% url 'contact' %}" 
-              class="bg-cream p-6 rounded-lg shadow-md max-w-md mx-auto"> <!-- Centered and limited width -->
+              class="bg-cream p-6 rounded-lg shadow-md max-w-md mx-auto text-left"> <!-- Centered and limited width -->
             {% csrf_token %}
-            <!-- Honeypot field — hidden from humans, bots fill it in -->
-            <input type="text" name="url" autocomplete="off" tabindex="-1" 
-                   style="position:absolute;left:-9999px;">
-            <input type="text" name="name" placeholder="Your Name" required 
-                   class="w-full p-3 mb-4 border rounded border-gray-300 focus:outline-none focus:ring focus:ring-blue">
-            <input type="email" name="email" placeholder="Your Email" required 
-                   class="w-full p-3 mb-4 border rounded border-gray-300 focus:outline-none focus:ring focus:ring-blue">
-            <textarea name="message" placeholder="Your Message" rows="4"
-                      class="w-full p-3 mb-4 border rounded border-gray-300 focus:outline-none focus:ring focus:ring-blue"></textarea>
+
+            {% if form.non_field_errors %}
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <!-- Honeypot field — hidden from humans, bots fill it in (rendered by ContactForm) -->
+            {{ form.url }}
+
+            <div class="mb-4">
+                <label for="id_name" class="sr-only">Your Name</label>
+                <input type="text" id="id_name" name="name" value="{{ form.name.value|default:'' }}"
+                       placeholder="Your Name" required autocomplete="name"
+                       class="w-full p-3 border rounded {% if form.name.errors %}border-red-500{% else %}border-gray-300{% endif %} focus:outline-none focus:ring focus:ring-blue">
+                {% for error in form.name.errors %}
+                <p class="text-red-600 text-sm mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_email" class="sr-only">Your Email</label>
+                <input type="email" id="id_email" name="email" value="{{ form.email.value|default:'' }}"
+                       placeholder="Your Email" required autocomplete="email"
+                       class="w-full p-3 border rounded {% if form.email.errors %}border-red-500{% else %}border-gray-300{% endif %} focus:outline-none focus:ring focus:ring-blue">
+                {% for error in form.email.errors %}
+                <p class="text-red-600 text-sm mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_message" class="sr-only">Your Message</label>
+                <textarea id="id_message" name="message" placeholder="Your Message" rows="4"
+                          class="w-full p-3 border rounded {% if form.message.errors %}border-red-500{% else %}border-gray-300{% endif %} focus:outline-none focus:ring focus:ring-blue">{{ form.message.value|default:'' }}</textarea>
+                {% for error in form.message.errors %}
+                <p class="text-red-600 text-sm mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
             {{ form.captcha }}
+            {% for error in form.captcha.errors %}
+            <p class="text-red-600 text-sm mt-1 mb-4">{{ error }}</p>
+            {% endfor %}
+
             <button type="submit"
-                    class="btn-primary bg-red hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium flex items-center">
+                    class="btn-primary bg-red hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium flex items-center mx-auto">
                 Send Message
             </button>
         </form>
@@ -39,16 +73,18 @@
         <!-- Contact Information -->
         <div class="mt-8">
             <p>If you'd like to reach out again, feel free to contact me:</p>
-            <p>Email: 
-                <span id="emailAddress" style="cursor:pointer; color:blue; text-decoration:underline;"></span>
+            {% with email=global_profile.email|default:"arminmaddah.a@gmail.com" phone=global_profile.phone|default:"+49 177 9005396" %}
+            <p>Email:
+                <span id="emailAddress" data-email="{{ email }}" style="cursor:pointer; color:blue; text-decoration:underline;">{{ email }}</span>
             </p>
-            <p>Phone: <span id="phoneNumber"></span></p> 
+            <p>Phone: <span id="phoneNumber">{{ phone }}</span></p>
+            {% endwith %}
             <div>
                 <!-- Social Media Links -->
-                <a href="https://api.whatsapp.com/send/?phone=%2B491779005396&text&type=phone_number" target="_blank" class='text-navy hover:text-blue'>WhatsApp</a> |
-                <a href="https://www.linkedin.com/in/armin-maddah-asl-493838219/" target="_blank" class='text-navy hover:text-blue'>LinkedIn</a> |
-                <a href="https://www.t.me/armin_2080" target="_blank" class='text-navy hover:text-blue'>Telegram</a> |
-                <a href="https://www.github.com/armin2080" target="_blank" class='text-navy hover:text-blue'>GitHub</a>
+                {% if global_profile.whatsapp_url %}<a href="{{ global_profile.whatsapp_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>WhatsApp</a> | {% endif %}
+                {% if global_profile.linkedin_url %}<a href="{{ global_profile.linkedin_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>LinkedIn</a> | {% endif %}
+                {% if global_profile.telegram_url %}<a href="{{ global_profile.telegram_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>Telegram</a> | {% endif %}
+                {% if global_profile.github_url %}<a href="{{ global_profile.github_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>GitHub</a>{% endif %}
             </div>
         </div>
 
@@ -56,32 +92,25 @@
 </section>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        // Obfuscate email to prevent scraping — assemble from parts
-        const emailUser = "arminmaddah.a";
-        const emailDomain = "gmail.com";
         const emailElement = document.getElementById("emailAddress");
-        emailElement.textContent = emailUser + "@" + emailDomain;
-
-        // Obfuscate phone number
-        const phoneElement = document.getElementById("phoneNumber");
-        phoneElement.textContent = "+49 177 9005396";
-
-        emailElement.addEventListener("click", function () {
-            const email = emailUser + "@" + emailDomain;
-            navigator.clipboard.writeText(email).then(function () {
-                alert("Email copied to clipboard!");
-            }).catch(function () {
-                // Fallback for older browsers
-                const textarea = document.createElement("textarea");
-                textarea.value = email;
-                document.body.appendChild(textarea);
-                textarea.select();
-                textarea.setSelectionRange(0, 99999);
-                document.execCommand("copy");
-                document.body.removeChild(textarea);
-                alert("Email copied to clipboard!");
+        if (emailElement) {
+            emailElement.addEventListener("click", function () {
+                const email = emailElement.dataset.email;
+                navigator.clipboard.writeText(email).then(function () {
+                    alert("Email copied to clipboard!");
+                }).catch(function () {
+                    // Fallback for older browsers
+                    const textarea = document.createElement("textarea");
+                    textarea.value = email;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    textarea.setSelectionRange(0, 99999);
+                    document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                    alert("Email copied to clipboard!");
+                });
             });
-        });
+        }
     });
 </script>
 {% endblock %}

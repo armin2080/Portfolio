@@ -11,8 +11,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import hashlib
 import os
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,11 +26,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-n0!=w*g*36-c=f(*^0a7gsaur031ys8-5ngn#6hpus&8^1u4ac')
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+
+# SECURITY WARNING: keep the secret key used in production secret!
+# A real SECRET_KEY must be provided in production (e.g. via .env).
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'django-insecure-n0!=w*g*36-c=f(*^0a7gsaur031ys8-5ngn#6hpus&8^1u4ac'
+    else:
+        raise ImproperlyConfigured(
+            "SECRET_KEY environment variable is required when DEBUG is False. "
+            "Set it in your .env file."
+        )
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
@@ -37,6 +48,9 @@ CSRF_TRUSTED_ORIGINS = [
     'https://armin2080.de',
     'https://www.armin2080.de'
 ]
+
+# Canonical site origin, used for canonical/Open Graph URLs and robots.txt.
+SITE_URL = os.environ.get('SITE_URL', 'https://armin2080.de').rstrip('/')
 
 # Help Django understand it's behind a proxy (Cloudflare)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -65,6 +79,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Must come after AuthenticationMiddleware so it can skip staff requests.
+    'portfolio_app.middleware.PageViewMiddleware',
 ]
 
 ROOT_URLCONF = 'Personal_Portfolio.urls'
@@ -123,7 +139,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Local time for this German portfolio: also makes the daily statistics bucket
+# by local calendar day instead of shifting over at 01:00/02:00 local time.
+TIME_ZONE = os.environ.get('TIME_ZONE', 'Europe/Berlin')
 
 USE_I18N = True
 
@@ -155,23 +173,89 @@ CACHES = {
     }
 }
 
+# Behind Cloudflare REMOTE_ADDR is the proxy's address, so django-ratelimit would
+# put every visitor in one shared bucket (3 blocked messages per hour site-wide).
+# Resolve the real client IP instead — see portfolio_app/utils.client_ip.
+RATELIMIT_IP_META_KEY = 'portfolio_app.utils.client_ip'
+
+# Whether to trust CF-Connecting-IP / X-Forwarded-For when identifying a client.
+# Only enable this when the app is reachable exclusively through the proxy:
+# otherwise a client can spoof the header to dodge the contact form rate limit.
+TRUST_PROXY_HEADERS = os.environ.get('TRUST_PROXY_HEADERS', 'True') == 'True'
+
+
+# Visitor statistics (private admin dashboard)
+# Records anonymous page views in this database only: no cookies, no third
+# parties, no raw IP addresses. See portfolio_app/analytics.py and the README.
+ANALYTICS_ENABLED = os.environ.get('ANALYTICS_ENABLED', 'True') == 'True'
+
+# Secret used to derive the daily visitor pseudonym. Keep it private — anyone
+# who knows it can brute-force the (small) space of IP addresses.
+ANALYTICS_SALT = os.environ.get('ANALYTICS_SALT', '')
+if not ANALYTICS_SALT:
+    # Derive a distinct secret so the raw SECRET_KEY is never reused directly.
+    ANALYTICS_SALT = hashlib.sha256(f"analytics:{SECRET_KEY}".encode('utf-8')).hexdigest()
+
+# Page views older than this are removed by `manage.py purge_pageviews`
+# (installed as a daily systemd timer — see SYSTEMD_DEPLOY.md).
+ANALYTICS_RETENTION_DAYS = int(os.environ.get('ANALYTICS_RETENTION_DAYS', '180'))
+
 # reCAPTCHA (Google reCAPTCHA v3 – invisible)
-RECAPTCHA_PUBLIC_KEY = os.environ.get('RECAPTCHA_PUBLIC_KEY', '')
-RECAPTCHA_PRIVATE_KEY = os.environ.get('RECAPTCHA_PRIVATE_KEY', '')
+# Empty values and the .env.example placeholders must count as "not configured".
+# Defining an empty key would otherwise make every submission fail validation.
+_recaptcha_public_key = os.environ.get('RECAPTCHA_PUBLIC_KEY', '').strip()
+_recaptcha_private_key = os.environ.get('RECAPTCHA_PRIVATE_KEY', '').strip()
+_recaptcha_configured = all(
+    key and not key.startswith('your-recaptcha')
+    for key in (_recaptcha_public_key, _recaptcha_private_key)
+)
+
+if _recaptcha_configured:
+    RECAPTCHA_PUBLIC_KEY = _recaptcha_public_key
+    RECAPTCHA_PRIVATE_KEY = _recaptcha_private_key
+elif not DEBUG:
+    raise ImproperlyConfigured(
+        "RECAPTCHA_PUBLIC_KEY and RECAPTCHA_PRIVATE_KEY are required when DEBUG "
+        "is False, otherwise the contact form rejects every submission."
+    )
+else:
+    # Development: fall back to Google's documented test keys. The captcha field
+    # is skipped in the form while DEBUG is on (see portfolio_app/forms.py), but
+    # django-recaptcha needs these defined and its "test keys" check silenced.
+    RECAPTCHA_PUBLIC_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
+    RECAPTCHA_PRIVATE_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
+    SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']
 
 
-# 'console' prints emails to terminal (safe for dev), 'smtp' sends real emails
-if os.environ.get('EMAIL_BACKEND', 'console') == 'console':
+# 'console' prints emails to terminal (safe for dev), 'smtp' sends real emails.
+# Default to SMTP in production so contact-form messages are actually delivered.
+_default_email_backend = 'console' if DEBUG else 'smtp'
+if os.environ.get('EMAIL_BACKEND', _default_email_backend) == 'console':
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'email')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'app password')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
 
 # media files settings
 MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
+
+
+# Security settings for production (behind Cloudflare / a TLS-terminating proxy)
+if not DEBUG:
+    # Redirect all plain-HTTP requests to HTTPS.
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True') == 'True'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'

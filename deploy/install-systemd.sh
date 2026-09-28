@@ -46,8 +46,20 @@ sed \
     "$PROJECT_DIR/deploy/portfolio.service.template" |
     sudo tee /etc/systemd/system/portfolio.service >/dev/null
 
+echo "Installing daily statistics cleanup timer..."
+sed \
+    -e "s|__APP_USER__|$APP_USER|g" \
+    -e "s|__APP_GROUP__|$APP_GROUP|g" \
+    -e "s|__PROJECT_DIR__|$PROJECT_DIR|g" \
+    "$PROJECT_DIR/deploy/portfolio-purge.service.template" |
+    sudo tee /etc/systemd/system/portfolio-purge.service >/dev/null
+
+sudo cp "$PROJECT_DIR/deploy/portfolio-purge.timer.template" \
+    /etc/systemd/system/portfolio-purge.timer
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now portfolio.service
+sudo systemctl enable --now portfolio-purge.timer
 
 echo
 sudo systemctl --no-pager --full status portfolio.service
