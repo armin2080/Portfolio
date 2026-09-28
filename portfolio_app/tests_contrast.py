@@ -10,6 +10,7 @@ from django.urls import reverse
 from .contrast import (
     BOUNDARY_MIN,
     CONTRAST_CHECKS,
+    HAIRLINE_MIN,
     TEXT_MIN,
     checks_as_dicts,
     contrast_ratio,
@@ -32,13 +33,14 @@ CLEAN_PALETTE = {
     'primary': '#000000',
     'inverse': '#FFFFFF',
     'accent': '#FFFFFF',
+    'secondary': '#000000',
     'emphasis': '#000000',
     'page': '#FFFFFF',
     'surface': '#FFFFFF',
     'heading': '#000000',
     'ink': '#000000',
     'muted': '#000000',
-    'border': '#000000',
+    'border': '#767676',
 }
 
 
@@ -90,19 +92,26 @@ class PaletteWarningTests(TestCase):
     def test_a_palette_with_no_problems_returns_nothing(self):
         self.assertEqual(palette_contrast_warnings(self._clean_palette()), [])
 
-    def test_detects_the_top_bar_blending_into_the_page(self):
-        palette = dict(self._clean_palette(), primary='#0F3460', page='#0F3460')
-        labels = {w['label'] for w in palette_contrast_warnings(palette, mode='dark')}
-        self.assertIn('Top bar band', labels)
+    def test_detects_invisible_hairlines(self):
+        # The top bar and every card are delineated by a border, so a border that
+        # matches the page leaves them with no visible edge.
+        palette = dict(self._clean_palette(), border='#FFFFFF', page='#FFFFFF')
+        labels = {w['label'] for w in palette_contrast_warnings(palette, mode='light')}
+        self.assertIn('Hairlines', labels)
 
     def test_reports_the_ratio_and_the_minimum(self):
-        palette = dict(self._clean_palette(), primary='#0F3460', page='#0F3460')
+        palette = dict(self._clean_palette(), border='#FFFFFF', page='#FFFFFF')
         warning = next(
-            w for w in palette_contrast_warnings(palette) if w['label'] == 'Top bar band'
+            w for w in palette_contrast_warnings(palette) if w['label'] == 'Hairlines'
         )
         self.assertAlmostEqual(warning['ratio'], 1.0, places=1)
-        self.assertEqual(warning['minimum'], BOUNDARY_MIN)
-        self.assertIn('blend', warning['consequence'])
+        self.assertEqual(warning['minimum'], HAIRLINE_MIN)
+        self.assertIn('edge', warning['consequence'])
+
+    def test_detects_unreadable_links(self):
+        palette = dict(self._clean_palette(), secondary='#F0F0F0', page='#FFFFFF')
+        labels = {w['label'] for w in palette_contrast_warnings(palette)}
+        self.assertIn('Links', labels)
 
     def test_detects_unreadable_nav_text(self):
         palette = dict(self._clean_palette(), primary='#FFFFFF', inverse='#F0F0F0')
@@ -114,7 +123,7 @@ class PaletteWarningTests(TestCase):
         # minimum, using the same comparison the reporter uses.
         for palette in (
             self._clean_palette(),
-            dict(self._clean_palette(), primary='#0F3460', page='#0F3460'),
+            dict(self._clean_palette(), border='#FFFFFF', page='#FFFFFF'),
             dict(self._clean_palette(), muted='#FEFEFE'),
         ):
             with self.subTest(palette=palette['primary']):
@@ -146,8 +155,9 @@ class PaletteWarningTests(TestCase):
         self.assertEqual(missing, set(), f'CLEAN_PALETTE is missing: {sorted(missing)}')
 
     def test_cards_are_not_flagged_for_lacking_a_colour_step(self):
-        # Regression guard: cards are separated by a shadow, so a surface/page
-        # contrast rule would flag the shipped design as broken.
+        # Regression guard: cards sit close to the page by design and are
+        # delineated by a hairline border, so a surface/page tonal rule would
+        # flag a correct design as broken.
         for palette in (DEFAULT_LIGHT_PALETTE, DEFAULT_DARK_PALETTE):
             with self.subTest(palette=palette['page']):
                 labels = {w['label'] for w in palette_contrast_warnings(palette)}
@@ -173,6 +183,7 @@ class AccentAsTextTests(TestCase):
 
     # The three places that render the years-of-experience caption.
     def test_skill_captions_use_a_readable_on_light_token(self):
+        readable = ('meta', 'text-heading', 'text-ink', 'text-muted')
         for template in ('homepage.html', 'skills.html', 'resume.html'):
             source = (settings.BASE_DIR / 'templates' / template).read_text()
             lines = [line for line in source.splitlines() if 'years_since_display' in line]
@@ -182,43 +193,56 @@ class AccentAsTextTests(TestCase):
                 with self.subTest(template=template, line=line.strip()[:70]):
                     self.assertNotIn('text-accent', line)
                     self.assertTrue(
-                        'text-heading' in line or 'text-ink' in line or 'text-muted' in line,
+                        any(token in line for token in readable),
                         'caption does not use a readable on-light token',
                     )
 
 
 class ShippedDefaultsTests(TestCase):
-    """Documents the real contrast findings in the palette the site falls back to."""
+    """Documents the real contrast findings in the palette the site falls back to.
 
-    def test_light_palette_text_is_readable(self):
+    The shipped defaults predate the Armin OS redesign. Under the current check
+    set they fail on links and button labels, which is accurate: the original
+    link blue was only 4.30:1 on the page, and the cream-on-red button label
+    3.90:1. Both are real pre-existing issues rather than checker bugs.
+    """
+
+    def test_light_palette_structure_and_body_are_readable(self):
         warnings = palette_contrast_warnings(DEFAULT_LIGHT_PALETTE, mode='light')
         labels = {w['label'] for w in warnings}
-        for ok in ('Top bar links', 'Top bar band', 'Body text', 'Text on cards', 'Muted text'):
+        for ok in ('Top bar links', 'Hairlines', 'Body text', 'Text on cards', 'Muted text'):
             with self.subTest(check=ok):
                 self.assertNotIn(ok, labels, f'{ok} unexpectedly fails in the light defaults')
 
+    def test_light_links_are_just_below_aa(self):
+        ratio = contrast_ratio(
+            DEFAULT_LIGHT_PALETTE['secondary'], DEFAULT_LIGHT_PALETTE['page']
+        )
+        self.assertGreater(ratio, 4.0)
+        self.assertLess(ratio, TEXT_MIN)
+
     def test_light_button_labels_are_slightly_below_aa(self):
-        # FINDING: cream text on the emphasis red is 3.9:1 — under the 4.5:1 AA
-        # threshold for normal text. Passes only the 3:1 large-text bar, so this
-        # is a real (pre-existing) issue rather than a contrast-checker bug. If
-        # the button colour is ever darkened, this expectation should change.
         ratio = contrast_ratio(
             DEFAULT_LIGHT_PALETTE['inverse'], DEFAULT_LIGHT_PALETTE['emphasis']
         )
         self.assertGreater(ratio, 3.0)
         self.assertLess(ratio, TEXT_MIN)
 
-    def test_dark_palette_bar_separation_is_the_known_problem(self):
-        # FINDING: the shipped dark bar (primary #0F3460) is very close to the
-        # dark page (#1A1A2E), so the navigation band has no visible edge.
-        ratio = contrast_ratio(
-            DEFAULT_DARK_PALETTE['primary'], DEFAULT_DARK_PALETTE['page']
+    def test_dark_palette_bar_is_delineated_by_a_border_not_by_tone(self):
+        # A graphite bar next to a near-black page has almost no tonal step. That
+        # is intentional: the separation comes from `border-b`, so the hairline is
+        # the thing that must stay perceptible.
+        self.assertLess(
+            contrast_ratio(DEFAULT_DARK_PALETTE['primary'], DEFAULT_DARK_PALETTE['page']),
+            BOUNDARY_MIN,
         )
-        self.assertLess(ratio, BOUNDARY_MIN)
-        self.assertLess(ratio, 1.5)
+        self.assertGreaterEqual(
+            contrast_ratio(DEFAULT_DARK_PALETTE['border'], DEFAULT_DARK_PALETTE['page']),
+            HAIRLINE_MIN,
+        )
 
     def test_dark_palette_text_is_readable(self):
-        # The dark defaults get the text right even though the band does not.
+        # The dark defaults get the text right.
         self.assertGreater(
             contrast_ratio(DEFAULT_DARK_PALETTE['inverse'], DEFAULT_DARK_PALETTE['primary']),
             TEXT_MIN,
@@ -253,9 +277,11 @@ class ContrastReportAdminTests(TestCase):
         body = response.content.decode()
         self.assertIn('theme-contrast-report', body)
         self.assertIn('theme-contrast-list', body)
-        # The two documented findings in the shipped palettes.
-        self.assertIn('Top bar band', body)     # dark bar blends into the page
-        self.assertIn('Button labels', body)    # cream on red is 3.9:1
+        # The documented findings in the shipped palettes: sub-AA links and
+        # button labels. (The top bar is no longer flagged: its separation comes
+        # from a border, which the 'Hairlines' check covers.)
+        self.assertIn('Links', body)
+        self.assertIn('Button labels', body)
 
     def test_change_form_says_ok_when_a_palette_is_clean(self):
         theme = Theme.objects.create(name='Clean')
