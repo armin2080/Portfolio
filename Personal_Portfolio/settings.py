@@ -16,11 +16,17 @@ import os
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
-# Load environment variables from .env file
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from the project's .env. The path is passed
+# explicitly so the file is found no matter which directory `manage.py` (or a
+# systemd unit) is invoked from; letting python-dotenv search from the current
+# working directory made configuration depend on where the command was run.
+#
+# Note this does NOT override variables already present in the environment —
+# an exported GITHUB_USERNAME= would win over the file.
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
