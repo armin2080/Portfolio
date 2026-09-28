@@ -10,7 +10,7 @@ from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
 from django.core.management import call_command
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django_recaptcha.client import RecaptchaResponse
@@ -450,3 +450,34 @@ class StaticAssetTests(TestCase):
         # could keep serving a stale stylesheet after a deploy.
         backend = settings.STORAGES['staticfiles']['BACKEND']
         self.assertIn('ManifestStaticFilesStorage', backend)
+
+
+# ---------------------------------------------------------------------------
+# Scroll animations
+# ---------------------------------------------------------------------------
+class ScrollAnimationTests(SimpleTestCase):
+    """Sections must never be left invisible by the fade-in animation.
+
+    `.js .animate-on-scroll` sets opacity 0 and only JavaScript adds `.visible`,
+    so a mistake here blanks everything below the header. The observer used a
+    0.1 ratio threshold, which is the fraction of the *element* that must be on
+    screen — a section taller than 10x the viewport can never reach it. That is
+    how /projects/ went blank on a phone once the GitHub sync grew it to 33
+    cards (~16,000px against an ~844px viewport, a maximum ratio of 0.05), while
+    the 3-column desktop grid stayed short enough to pass.
+    """
+
+    def setUp(self):
+        self.html = (settings.BASE_DIR / 'templates' / 'base.html').read_text()
+
+    def test_reveals_as_soon_as_any_part_is_visible(self):
+        self.assertIn('threshold: 0,', self.html)
+
+    def test_does_not_use_a_ratio_threshold(self):
+        # Any fraction (0.1, .5, ...) reintroduces the bug above.
+        self.assertNotRegex(self.html, r'threshold:\s*0?\.\d')
+
+    def test_failure_to_observe_still_reveals_the_content(self):
+        # No IntersectionObserver, or a thrown error, must show everything.
+        self.assertIn('revealAnimatedElements', self.html)
+        self.assertIn("'IntersectionObserver' in window", self.html)
