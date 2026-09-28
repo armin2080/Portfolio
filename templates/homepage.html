@@ -14,9 +14,9 @@
             <div class="w-full md:w-2/5 flex justify-center md:justify-end mb-6 md:mb-0">
                 <div class="relative">
                     <!-- Decorative halo (mobile only) -->
-                    <div class="hero-glow md:hidden" aria-hidden="true"></div>
+                    <div class="hero-ring md:hidden" aria-hidden="true"></div>
                     <div
-                        class="relative z-10 w-36 h-36 md:w-56 md:h-56 rounded-full overflow-hidden border-4 border-accent shadow-lg profile-image">
+                        class="relative z-10 w-36 h-36 md:w-56 md:h-56 rounded-full overflow-hidden border-2 border-accent shadow-sm profile-image">
                         {% if profile and profile.profile_picture %}
                             <img src="{{ profile.profile_picture.url }}" alt="Profile Picture" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
                         {% else %}
@@ -27,7 +27,7 @@
                     </div>
                     {% if profile and profile.available_for_hire %}
                     <div
-                        class="absolute -bottom-2 -right-2 bg-emphasis text-inverse text-xs font-bold px-3 py-1 rounded-full transition-transform duration-300 hover:scale-105">
+                        class="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-emphasis text-inverse font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md">
                         Available for hire
                     </div>
                     {% endif %}
@@ -51,7 +51,7 @@
                      mobile, which avoids the ragged 2+1 wrap; a plain row at md+. -->
                 <div class="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:gap-4">
                     <a href="{% url 'resume' %}"
-                        class="btn-primary bg-primary hover:bg-opacity-90 text-inverse px-4 md:px-6 py-3 rounded-lg font-medium flex items-center justify-center md:justify-start active:scale-95">
+                        class="btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-4 md:px-6 py-3 rounded-md font-medium flex items-center justify-center md:justify-start active:scale-95">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -61,7 +61,7 @@
                         Resume
                     </a>
                     <a href="#projects"
-                        class="btn-primary bg-secondary hover:bg-opacity-90 text-inverse px-4 md:px-6 py-3 rounded-lg font-medium flex items-center justify-center md:justify-start active:scale-95">
+                        class="btn-primary border border-border bg-surface hover:border-secondary hover:text-secondary text-heading px-4 md:px-6 py-3 rounded-md font-medium flex items-center justify-center md:justify-start active:scale-95">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -70,7 +70,7 @@
                         Projects
                     </a>
                     <a href="#contact"
-                        class="btn-primary col-span-2 md:col-span-1 bg-accent hover:bg-opacity-90 text-heading px-4 md:px-6 py-3 rounded-lg font-medium flex items-center justify-center md:justify-start active:scale-95">
+                        class="btn-primary col-span-2 md:col-span-1 border border-border bg-surface hover:border-secondary hover:text-secondary text-heading px-4 md:px-6 py-3 rounded-md font-medium flex items-center justify-center md:justify-start active:scale-95">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -106,7 +106,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             {% for skill in skills %}
-            <div class="skill-badge bg-page rounded-xl p-5 md:p-6 shadow-md hover:shadow-lg transition-shadow">
+            <div class="skill-badge bg-page rounded-lg border border-border p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div class="flex items-center mb-4">
                     <div class="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mr-4">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-inverse" viewBox="0 0 24 24"
@@ -118,7 +118,7 @@
                     </div>
                     <h3 class="text-xl font-semibold text-heading">{{ skill.name }}</h3>
                 </div>
-                <p class="text-sm text-heading font-medium mb-2">{{ skill.start_date|years_since_display }}</p>
+                <p class="meta mb-2">{{ skill.start_date|years_since_display }}</p>
                 <p class="mt-4 text-ink">{{ skill.description|truncatechars:80 }}</p>
             </div>
             {% endfor %}
@@ -128,7 +128,7 @@
 </section>
 
 <!-- Featured Projects (from GitHub) -->
-<section id="projects" class="bg-accent bg-opacity-20 py-12 animate-on-scroll">
+<section id="projects" class="bg-surface border-y border-border py-12 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8">
         <div class="flex justify-between items-center mb-8">
             <div>
@@ -144,14 +144,14 @@
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             {% for project in projects %}
-            <div class="project-card bg-surface rounded-xl overflow-hidden shadow-md">
+            <div class="project-card bg-surface rounded-lg border border-border overflow-hidden shadow-sm">
                 <div class="h-40 md:h-48 relative overflow-hidden">
                     {% if project.image %}
                     <img src="{{ project.image.url }}" alt="{{ project.name }}"
                          class="w-full h-full object-cover transition-transform duration-300 hover:scale-110">
                     {% else %}
-                    <div class="w-full h-full {% cycle 'bg-primary' 'bg-secondary' %} flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 {% cycle 'text-accent' 'text-inverse' %} project-icon"
+                    <div class="w-full h-full bg-primary border-b border-border flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-accent project-icon"
                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -162,7 +162,7 @@
                         <div class="text-center p-4">
                             <p class="text-inverse mb-4">{{ project.description|truncatechars:80 }}</p>
                             <a href="{{ project.link }}" target="_blank"
-                                class="inline-block bg-accent text-heading px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 transition-colors">
+                                class="inline-block bg-emphasis text-inverse px-4 py-2 rounded-md font-medium hover:bg-opacity-90 transition-colors">
                                 View Details
                             </a>
                         </div>
@@ -172,13 +172,13 @@
                     <div class="flex justify-between items-start mb-2">
                         <h3 class="text-xl font-semibold text-heading">{{ project.name }}</h3>
                         {% if project.category %}
-                            <span class="{% cycle 'bg-secondary' 'bg-emphasis' %} text-xs text-inverse px-2 py-1 rounded">{{ project.category.name }}</span>
+                            <span class="border border-border bg-page text-secondary px-2 py-1 rounded font-mono text-[10px] uppercase tracking-wider">{{ project.category.name }}</span>
                         {% endif %}
                     </div>
                     <p class="text-ink mb-4">{{ project.description|truncatechars:80 }}</p>
                     <div class="flex flex-wrap gap-2 mb-4">
                         {% for skill in project.skills_used.all %}
-                        <span class="bg-accent bg-opacity-20 text-secondary text-xs px-2 py-1 rounded">{{ skill.name }}</span>
+                        <span class="border border-border bg-page text-secondary px-2 py-1 rounded font-mono text-[11px] tracking-wide">{{ skill.name }}</span>
                         {% empty %}
                         <span class="text-muted text-xs">No skills associated with this project.</span>
                         {% endfor %}
@@ -208,7 +208,7 @@
         </p>
         <div class="flex flex-wrap justify-center gap-4">
             <a href="{% url 'contact' %}"
-                class="btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-6 py-3 rounded-lg font-medium flex items-center">
+                class="btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-6 py-3 rounded-md font-medium flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

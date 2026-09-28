@@ -16,7 +16,7 @@
         <!-- Skills Grid -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             {% for skill in skills %}
-            <div class="skill-badge bg-surface rounded-xl p-5 md:p-6 shadow-md hover:shadow-lg transition-shadow">
+            <div class="skill-badge bg-surface rounded-lg border border-border p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div class="flex items-center mb-4">
                     <div class="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mr-4">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-accent" viewBox="0 0 24 24"
@@ -28,7 +28,7 @@
                     </div>
                     <h3 class="text-xl font-semibold text-heading">{{ skill.name }}</h3>
                 </div>
-                <p class="text-sm text-heading font-medium mb-3">{{ skill.start_date|years_since_display }} experience</p>
+                <p class="meta mb-3">{{ skill.start_date|years_since_display }} experience</p>
                 <p class="mt-2 text-ink text-left">{{ skill.description }}</p>
 
             </div>

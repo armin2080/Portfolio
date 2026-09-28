@@ -9,14 +9,14 @@
     <div class="container mx-auto px-4 md:px-8">
 
         <!-- Header -->
-        <header class="bg-primary text-inverse rounded-lg shadow-lg p-8 mb-8 max-w-4xl mx-auto">
+        <header class="bg-primary text-inverse rounded-lg shadow-sm p-8 mb-8 max-w-4xl mx-auto">
             <div class="flex flex-col md:flex-row justify-between items-center text-center md:text-left"> <!-- Center text on mobile -->
                 <div>
                     <h1 class="text-3xl md:text-4xl font-bold mb-2">{% if profile %}{{ profile.name }}{% else %}Armin Maddah Asl{% endif %}</h1>
                     <h2 class="text-xl md:text-2xl font-medium text-accent mb-4">{% if profile %}{{ profile.title }}{% else %}Junior Data Scientist{% endif %}</h2>
                 </div>
                 <!-- Profile Image: Hidden on small screens -->
-                <div class="w-48 h-48 md:w-48 md:h-48 rounded-full overflow-hidden border-4 border-accent shadow-lg profile-image hidden md:block">
+                <div class="w-48 h-48 md:w-48 md:h-48 rounded-full overflow-hidden border-2 border-accent shadow-sm profile-image hidden md:block">
                     {% if profile and profile.profile_picture %}
                 <img src="{{ profile.profile_picture.url }}" alt="{{ profile.name }}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
                 {% else %}
@@ -32,13 +32,13 @@
             <div class="mt-1 text-center md:text-left">
                 {% if profile.resume_en %}
                 <a href="{{ profile.resume_en.url }}" download
-                class='btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-4 py-2 rounded-lg mr-2'>
+                class='btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-4 py-2 rounded-md mr-2'>
                 English CV file
                 </a>
                 {% endif %}
                 {% if profile.resume_de %}
                 <a href="{{ profile.resume_de.url }}" download
-                class='btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-4 py-2 rounded-lg'>
+                class='btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-4 py-2 rounded-md'>
                 German CV file
                 </a>
                 {% endif %}
@@ -47,7 +47,7 @@
         </header>
 
         <!-- Contact Information -->
-        <section class="bg-surface rounded-lg shadow-lg p-8 mb-8 max-w-4xl mx-auto">
+        <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-8 max-w-4xl mx-auto">
             <h2 class="text-2xl font-bold section-title mb-1">Contact Information</h2>
             <div class="w-12 h-1 bg-emphasis mb-8"></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -86,7 +86,7 @@
         </section>
 
         <!-- Professional Summary -->
-        <section class="bg-surface rounded-lg shadow-lg p-8 mb-8 max-w-4xl mx-auto">
+        <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-8 max-w-4xl mx-auto">
             <h2 class="text-2xl font-bold section-title mb-1">Professional Summary</h2>
             <div class="w-12 h-1 bg-emphasis mb-8"></div>
             <p class="text-ink leading-relaxed">
@@ -99,7 +99,7 @@
         </section>
 
         <!-- Education -->
-        <section class="bg-surface rounded-lg shadow-lg p-8 mb-8 max-w-4xl mx-auto">
+        <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-8 max-w-4xl mx-auto">
             <h2 class="text-2xl font-bold section-title mb-1">Education</h2>
             <div class="w-12 h-1 bg-emphasis mb-8"></div>
             
@@ -107,7 +107,7 @@
             <div class="timeline-item pb-8 mb-2">
                 <div class="flex flex-col md:flex-row md:justify-between mb-2">
                     <h3 class="text-xl font-semibold text-secondary">{{ edu.degree }}</h3>
-                    <div class="text-muted font-medium">
+                    <div class="text-muted font-mono text-sm">
                         <span class="text-emphasis">{{ edu.institution }}</span> | {{ edu.start_date.year }} -
                         {% if edu.end_date %} {{ edu.end_date.year }} {% else %} Present {% endif %}
                     </div>
@@ -118,14 +118,14 @@
         </section>
 
         <!-- Work Experience -->
-        <section class="bg-surface rounded-lg shadow-lg p-8 mb-8 max-w-4xl mx-auto">
+        <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-8 max-w-4xl mx-auto">
             <h2 class="text-2xl font-bold section-title mb-1">Work Experience</h2>
             <div class="w-12 h-1 bg-emphasis mb-8"></div>
             {% for exp in experiences %}
             <div class="timeline-item pb-8 mb-2">
                 <div class="flex flex-col md:flex-row md:justify-between mb-2">
                     <h3 class="text-xl font-semibold text-secondary">{{ exp.role }}</h3>
-                    <div class="text-muted font-medium">
+                    <div class="text-muted font-mono text-sm">
                         <span class="text-emphasis">{{ exp.company }}</span> | {{ exp.start_date|date:"m.Y" }} -
                         {% if exp.end_date %} {{ exp.end_date|date:"m.Y" }} {% else %} Present {% endif %}
                     </div>
@@ -144,7 +144,7 @@
         </section>
 
         <!-- Skills -->
-        <section class="bg-surface rounded-lg shadow-lg p-8 mb-8 max-w-4xl mx-auto">
+        <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-8 max-w-4xl mx-auto">
             <h2 class="text-2xl font-bold section-title mb-1">Skills</h2>
             <div class="w-12 h-1 bg-emphasis mb-8"></div>
             
@@ -152,14 +152,14 @@
                 {% for skill in skills %}
                 <div class="flex items-center justify-between py-1">
                     <span class="text-ink font-medium">{{ skill.name }}</span>
-                    <span class="text-sm text-heading font-medium">{{ skill.start_date|years_since_display }}</span>
+                    <span class="font-mono text-sm text-heading">{{ skill.start_date|years_since_display }}</span>
                 </div>
                 {% endfor %}
             </div>
         </section>
 
         <!-- Languages -->
-        <section class="bg-surface rounded-lg shadow-lg p-8 mb-8 max-w-4xl mx-auto">
+        <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-8 max-w-4xl mx-auto">
             <h2 class="text-2xl font-bold section-title mb-1">Languages</h2>
             <div class="w-12 h-1 bg-emphasis mb-8"></div>
             
@@ -180,13 +180,13 @@
         </section>
 
         <!-- Certificates -->
-        <section class="bg-surface rounded-lg shadow-lg p-8 mb-8 max-w-4xl mx-auto">
+        <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-8 max-w-4xl mx-auto">
             <h2 class="text-2xl font-bold section-title mb-1">Certificates</h2>
             <div class="w-12 h-1 bg-emphasis mb-8"></div>
             
             <div class="space-y-4">
                 {% for cert in certificates %}
-                    <div class="border-l-4 border-accent pl-4 py-2">
+                    <div class="border-l-2 border-secondary pl-4 py-2">
                         <h3 class="text-lg font-semibold text-secondary">
                             <a href="{{ cert.link }}" target="_blank" class="hover:text-heading">{{ cert.name }}</a>
                         </h3>

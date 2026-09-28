@@ -24,26 +24,26 @@
 
         <!-- Summary cards -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-            <div class="bg-surface rounded-xl shadow-md p-5">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-5">
                 <p class="text-sm text-ink">Views today</p>
                 <p class="text-3xl font-bold text-heading">{{ views_today }}</p>
             </div>
-            <div class="bg-surface rounded-xl shadow-md p-5">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-5">
                 <p class="text-sm text-ink">Visitors today</p>
                 <p class="text-3xl font-bold text-heading">{{ unique_today }}</p>
             </div>
-            <div class="bg-surface rounded-xl shadow-md p-5">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-5">
                 <p class="text-sm text-ink">Views ({{ window_days }} days)</p>
                 <p class="text-3xl font-bold text-heading">{{ views_window }}</p>
             </div>
-            <div class="bg-surface rounded-xl shadow-md p-5">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-5">
                 <p class="text-sm text-ink">Visitors ({{ window_days }} days)</p>
                 <p class="text-3xl font-bold text-heading">{{ unique_window }}</p>
             </div>
         </div>
 
         <!-- Daily chart -->
-        <div class="bg-surface rounded-xl shadow-md p-6 mb-10">
+        <div class="bg-surface rounded-lg border border-border shadow-sm p-6 mb-10">
             <h3 class="text-xl font-semibold text-heading mb-1">Views per day</h3>
             <p class="text-sm text-ink mb-6">Last {{ window_days }} days</p>
             <div class="flex items-end justify-between gap-1 h-40">
@@ -66,7 +66,7 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
             <!-- Top pages -->
-            <div class="bg-surface rounded-xl shadow-md p-6">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-6">
                 <h3 class="text-xl font-semibold text-heading mb-4">Most viewed pages</h3>
                 {% for row in top_pages %}
                 <div class="flex justify-between items-center py-2 border-b border-border last:border-0">
@@ -79,7 +79,7 @@
             </div>
 
             <!-- Countries -->
-            <div class="bg-surface rounded-xl shadow-md p-6">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-6">
                 <h3 class="text-xl font-semibold text-heading mb-1">Countries</h3>
                 <p class="text-sm text-ink mb-4">From Cloudflare, no GeoIP database needed.</p>
                 {% for row in top_countries %}
@@ -93,7 +93,7 @@
             </div>
 
             <!-- Devices -->
-            <div class="bg-surface rounded-xl shadow-md p-6">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-6">
                 <h3 class="text-xl font-semibold text-heading mb-4">Devices</h3>
                 {% for row in devices %}
                 <div class="flex justify-between items-center py-2 border-b border-border last:border-0">
@@ -106,7 +106,7 @@
             </div>
 
             <!-- Browsers -->
-            <div class="bg-surface rounded-xl shadow-md p-6">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-6">
                 <h3 class="text-xl font-semibold text-heading mb-4">Browsers</h3>
                 {% for row in browsers %}
                 <div class="flex justify-between items-center py-2 border-b border-border last:border-0">
@@ -119,7 +119,7 @@
             </div>
 
             <!-- Operating systems -->
-            <div class="bg-surface rounded-xl shadow-md p-6">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-6">
                 <h3 class="text-xl font-semibold text-heading mb-4">Operating systems</h3>
                 {% for row in operating_systems %}
                 <div class="flex justify-between items-center py-2 border-b border-border last:border-0">
@@ -132,7 +132,7 @@
             </div>
 
             <!-- Referrers -->
-            <div class="bg-surface rounded-xl shadow-md p-6">
+            <div class="bg-surface rounded-lg border border-border shadow-sm p-6">
                 <h3 class="text-xl font-semibold text-heading mb-4">Traffic sources</h3>
                 {% for row in referrers %}
                 <div class="flex justify-between items-center py-2 border-b border-border last:border-0">
@@ -146,7 +146,7 @@
         </div>
 
         <!-- Footnotes -->
-        <div class="bg-surface rounded-xl shadow-md p-6 text-sm text-ink">
+        <div class="bg-surface rounded-lg border border-border shadow-sm p-6 text-sm text-ink">
             <h3 class="text-lg font-semibold text-heading mb-2">About these numbers</h3>
             <ul class="list-disc list-inside space-y-1">
                 <li>Bots and crawlers are excluded from the figures above ({{ bot_views }} bot view{{ bot_views|pluralize }} recorded in total).</li>

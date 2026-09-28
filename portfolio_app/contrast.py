@@ -4,31 +4,35 @@ Deliberately free of Django imports so the maths can be unit-tested and reused
 by the model, the admin and the tests without touching the database.
 """
 
-# WCAG 2.1 thresholds: 4.5:1 for normal text (SC 1.4.3) and 3:1 for non-text
-# boundaries and UI components (SC 1.4.11).
+# WCAG 2.1 thresholds: 4.5:1 for normal text (SC 1.4.3), 3:1 for non-text
+# boundaries (SC 1.4.11), and a lower bar for hairlines that only need to be
+# perceptible rather than a formal boundary.
 TEXT_MIN = 4.5
 BOUNDARY_MIN = 3.0
+HAIRLINE_MIN = 1.15
 
 # label, foreground role, background role, minimum, what goes wrong
 #
-# Note: there is deliberately no `surface` vs `page` check. Cards in this design
-# are separated from the page by a drop shadow, not by a colour step, so a
-# contrast rule between them would flag a perfectly good design (the shipped
-# palettes sit at ~1.07:1 for that pair by intent).
+# Two deliberate omissions, because in this design those boundaries are drawn by
+# a border rather than by a step in tone:
 #
-# `heading` is checked as text because it is used both for headings and for
-# brand-coloured captions (e.g. the years line on a skill card). `accent` is
-# deliberately NOT checked as text: it is a pale "on-dark" colour, and using it
-# for text on a light card is the mistake that made a caption invisible at
-# 1.03:1. Anything readable on a light surface should use `heading`, `ink` or
-# `muted` instead.
+#  * no `surface` vs `page` check — cards carry a hairline border and a minimal
+#    shadow, and are meant to sit close to the page (the shipped palettes are
+#    ~1.08:1 there by intent);
+#  * no `primary` vs `page` check — the top bar is the same graphite as other
+#    surfaces and is delineated by `border-b`, which the 'Hairlines' check below
+#    covers. A dark graphite bar cannot separate from a near-black page by tone
+#    without becoming a bright strip, which the design deliberately avoids.
+#
+# `heading` is checked as text because it is used for headings *and* for
+# brand-coloured captions. `accent` is deliberately NOT checked as text: it is an
+# on-dark signal colour, so readable text on a light surface must use
+# heading/ink/muted instead.
 CONTRAST_CHECKS = (
     ('Top bar links', 'inverse', 'primary', TEXT_MIN,
      'the navigation links will be hard to read on the bar'),
     ('Top bar hover', 'accent', 'primary', TEXT_MIN,
      'the hover colour on the navigation links will be hard to read'),
-    ('Top bar band', 'primary', 'page', BOUNDARY_MIN,
-     'the top bar will blend into the page with no visible edge'),
     ('Body text', 'ink', 'page', TEXT_MIN,
      'body copy will be hard to read'),
     ('Text on cards', 'ink', 'surface', TEXT_MIN,
@@ -39,8 +43,14 @@ CONTRAST_CHECKS = (
      'headings and brand-coloured text on cards will be hard to read'),
     ('Muted text', 'muted', 'page', TEXT_MIN,
      'captions and metadata will be hard to read'),
+    ('Links', 'secondary', 'page', TEXT_MIN,
+     'links will be hard to read'),
+    ('Links on cards', 'secondary', 'surface', TEXT_MIN,
+     'links inside cards will be hard to read'),
     ('Button labels', 'inverse', 'emphasis', TEXT_MIN,
      'button labels will be hard to read'),
+    ('Hairlines', 'border', 'page', HAIRLINE_MIN,
+     'borders will be invisible, so panels and the top bar lose their edge'),
 )
 
 

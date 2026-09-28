@@ -29,14 +29,14 @@
         <!-- Projects Grid -->
         <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
             {% for project in projects %}
-            <div class="project-card bg-surface rounded-xl overflow-hidden shadow-md">
+            <div class="project-card bg-surface rounded-lg border border-border overflow-hidden shadow-sm">
                 <div class="h-40 md:h-48 relative overflow-hidden">
                     {% if project.image %}
                     <img src="{{ project.image.url }}" alt="{{ project.name }}"
                          class="w-full h-full object-cover transition-transform duration-300 hover:scale-110">
                     {% else %}
-                    <div class="w-full h-full {% cycle 'bg-primary' 'bg-secondary' %} flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 {% cycle 'text-accent' 'text-inverse' %} project-icon"
+                    <div class="w-full h-full bg-primary border-b border-border flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-accent project-icon"
                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
@@ -48,7 +48,7 @@
                         <div class="text-center p-4">
                                 <p class="text-inverse mb-4">{{ project.description|truncatechars:100 }}</p>
                             <a href="{{ project.link }}" target="_blank"
-                                class="inline-block bg-accent text-heading px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 transition-colors">
+                                class="inline-block bg-emphasis text-inverse px-4 py-2 rounded-md font-medium hover:bg-opacity-90 transition-colors">
                                 View Details
                             </a>
                         </div>
@@ -60,13 +60,13 @@
                     <div class="flex justify-between items-start mb-2">
                         <h3 class="text-xl font-semibold text-heading">{{ project.name }}</h3>
                         {% if project.category %}
-                        <span class="{% cycle 'bg-secondary' 'bg-emphasis' %} text-xs text-inverse px-2 py-1 rounded">{{ project.category.name }}</span>
+                        <span class="border border-border bg-page text-secondary px-2 py-1 rounded font-mono text-[10px] uppercase tracking-wider">{{ project.category.name }}</span>
                         {% endif %}
                     </div>
                     <p class="text-ink mb-4 text-left">{{ project.description }}</p>
                     <div class="flex flex-wrap gap-2 mb-4">
                         {% for skill in project.skills_used.all %}
-                        <span class="bg-accent bg-opacity-20 text-secondary text-xs px-2 py-1 rounded">{{ skill.name }}</span>
+                        <span class="border border-border bg-page text-secondary px-2 py-1 rounded font-mono text-[11px] tracking-wide">{{ skill.name }}</span>
                         {% empty %}
                         <span class="text-muted text-xs">No skills associated with this project.</span>
                         {% endfor %}
