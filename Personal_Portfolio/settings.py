@@ -219,11 +219,17 @@ elif not DEBUG:
         "is False, otherwise the contact form rejects every submission."
     )
 else:
-    # Development: fall back to Google's documented test keys. The captcha field
-    # is skipped in the form while DEBUG is on (see portfolio_app/forms.py), but
-    # django-recaptcha needs these defined and its "test keys" check silenced.
-    RECAPTCHA_PUBLIC_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
-    RECAPTCHA_PRIVATE_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
+    # Development: fall back to the test keys that Google and django-recaptcha
+    # publish for exactly this purpose. They are read from the library instead
+    # of being hardcoded here, which keeps key-shaped strings out of the
+    # repository (secret scanners flag any hardcoded key) and stays correct if
+    # upstream ever rotates them. The captcha field is skipped while DEBUG is on
+    # (see portfolio_app/forms.py); django-recaptcha still needs these defined,
+    # and its "test keys in use" check silenced.
+    from django_recaptcha.constants import TEST_PRIVATE_KEY, TEST_PUBLIC_KEY
+
+    RECAPTCHA_PUBLIC_KEY = TEST_PUBLIC_KEY
+    RECAPTCHA_PRIVATE_KEY = TEST_PRIVATE_KEY
     SILENCED_SYSTEM_CHECKS = ['django_recaptcha.recaptcha_test_key_error']
 
 
