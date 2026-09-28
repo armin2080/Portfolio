@@ -149,7 +149,7 @@ class PublicPageTests(TestCase):
 
     # Analytics is disabled here so the assertion measures the projects page
     # itself, not the page-view INSERT added by the tracking middleware.
-    @override_settings(ANALYTICS_ENABLED=False)
+    @override_settings(ANALYTICS_ENABLED=False, CACHES=LOCMEM_CACHE)
     def test_projects_page_does_not_issue_queries_per_project(self):
         # select_related/prefetch_related keep the query count flat as projects
         # and their skills grow.
@@ -163,8 +163,13 @@ class PublicPageTests(TestCase):
             )
             project.skills_used.set([self.skill])
 
+        # Prime the caches first: the active theme and the "last updated" value
+        # are cached, so this measures the steady state rather than a cold cache.
+        self.client.get(reverse("projects"))
+
         with self.assertNumQueries(4):
-            # 1 session, 1 projects, 1 categories, 1 prefetch of skills
+            # 1 profile, 1 categories, 1 projects, 1 skills prefetch.
+            # Flat regardless of how many projects/skills exist.
             self.client.get(reverse("projects"))
 
 

@@ -96,6 +96,46 @@ client IP from `CF-Connecting-IP` rather than `REMOTE_ADDR` — behind Cloudflar
 the latter is the proxy's address, which would otherwise make the limit apply to
 the whole site at once. See `TRUST_PROXY_HEADERS` in `.env.example`.
 
+### Themes
+
+Colours and fonts are editable from the admin under **Themes** — no code change,
+no CSS rebuild and no restart. Activating a theme applies it to the live site
+immediately.
+
+Each theme defines:
+
+- a **light palette** and a **dark palette**, so dark mode is a genuine second
+  palette rather than a set of overrides;
+- a **heading font** and a **body font**.
+
+Eleven colour roles are available: *primary, secondary, accent, emphasis, page,
+surface, inverse, heading, ink, muted, border*. Templates use them as ordinary
+Tailwind utilities (`bg-primary`, `text-heading`, `border-border`, …), and the
+admin renders each as native colour picker with a live preview.
+
+Colours are typed or picked as **hex codes**. The field accepts `#1D3557`,
+`1d3557` and the shorthand `#abc`, and stores one canonical `#RRGGBB` form. The
+picker sits next to the text field so either workflow works — pick a colour, or
+paste a code — and the two stay in sync. A value that cannot be parsed is
+flagged in the field and never reaches the stylesheet.
+
+Under the hood the roles are CSS custom properties, so switching a theme only
+changes variable values. The defaults live in `static/css/tailwind.src.css` and
+match the original design, which means the site renders correctly even with no
+theme configured.
+
+**Why `heading` is separate from `primary`:** a single brand colour cannot be
+both a dark surface (the navigation in dark mode) and readable heading text
+(which must be light in dark mode). Keeping them apart is what allows one theme
+to work in both modes — `primary` is for surfaces, `heading` for text.
+
+Form-validation colours (`red-100` … `red-700`) are deliberately *not* themed, so
+error states stay recognisably red in every palette.
+
+Fonts are **self-hosted** (`static/fonts/`, three variable families, ~130 KB).
+No request is made to Google, so there is no third-party transfer to disclose —
+which is why the privacy notice no longer mentions Google Fonts.
+
 ### Visitor statistics
 
 A private dashboard at `/dashboard/` shows page views, unique visitors, top

@@ -3,7 +3,7 @@
 {% block title %}Message Sent{% endblock %}
 
 {% block content %}
-<section class="bg-teal text-navy py-16 animate-on-scroll">
+<section class="bg-accent text-heading py-16 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8 text-center">
         <h2 class="text-3xl md:text-4xl font-bold mb-4">Thank You!</h2>
         <p class="text-lg mb-8 max-w-2xl mx-auto">
@@ -12,7 +12,7 @@
 
         <!-- Optional: Add a button or link to return to home or contact -->
         <a href="{% url 'index' %}" 
-           class="btn-primary bg-red hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium inline-block items-center">
+           class="btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-6 py-3 rounded-lg font-medium inline-block items-center">
             Go Back to Home
         </a>
         
@@ -26,10 +26,10 @@
             {% endwith %}
             <div>
                 <!-- Social Media Links -->
-                {% if global_profile.whatsapp_url %}<a href="{{ global_profile.whatsapp_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>WhatsApp</a> | {% endif %}
-                {% if global_profile.linkedin_url %}<a href="{{ global_profile.linkedin_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>LinkedIn</a> | {% endif %}
-                {% if global_profile.telegram_url %}<a href="{{ global_profile.telegram_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>Telegram</a> | {% endif %}
-                {% if global_profile.github_url %}<a href="{{ global_profile.github_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>GitHub</a>{% endif %}
+                {% if global_profile.whatsapp_url %}<a href="{{ global_profile.whatsapp_url }}" target="_blank" rel="noopener" class='text-heading hover:text-secondary'>WhatsApp</a> | {% endif %}
+                {% if global_profile.linkedin_url %}<a href="{{ global_profile.linkedin_url }}" target="_blank" rel="noopener" class='text-heading hover:text-secondary'>LinkedIn</a> | {% endif %}
+                {% if global_profile.telegram_url %}<a href="{{ global_profile.telegram_url }}" target="_blank" rel="noopener" class='text-heading hover:text-secondary'>Telegram</a> | {% endif %}
+                {% if global_profile.github_url %}<a href="{{ global_profile.github_url }}" target="_blank" rel="noopener" class='text-heading hover:text-secondary'>GitHub</a>{% endif %}
             </div>
         </div>
 

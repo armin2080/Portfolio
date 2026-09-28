@@ -7,25 +7,25 @@
 
 {% block content %}
 <!-- Hero Section -->
-<section class="flex-grow flex items-center bg-cream animate-on-scroll">
+<section class="flex-grow flex items-center bg-page animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8 py-12 md:py-20">
         <div class="flex flex-col md:flex-row items-center justify-between">
             <!-- Profile Image -->
             <div class="w-full md:w-2/5 flex justify-center md:justify-end mb-8 md:mb-0">
                 <div class="relative">
                     <div
-                        class="w-48 h-48 md:w-56 md:h-56 rounded-full overflow-hidden border-4 border-teal shadow-lg profile-image">
+                        class="w-48 h-48 md:w-56 md:h-56 rounded-full overflow-hidden border-4 border-accent shadow-lg profile-image">
                         {% if profile and profile.profile_picture %}
                             <img src="{{ profile.profile_picture.url }}" alt="Profile Picture" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
                         {% else %}
-                            <div class="w-full h-full bg-navy flex items-center justify-center">
-                                <span class="text-5xl text-teal font-bold">{{ profile.name|first|default:'A' }}</span>
+                            <div class="w-full h-full bg-primary flex items-center justify-center">
+                                <span class="text-5xl text-accent font-bold">{{ profile.name|first|default:'A' }}</span>
                             </div>
                         {% endif %}
                     </div>
                     {% if profile and profile.available_for_hire %}
                     <div
-                        class="absolute -bottom-2 -right-2 bg-red text-cream text-xs font-bold px-3 py-1 rounded-full transition-transform duration-300 hover:scale-105">
+                        class="absolute -bottom-2 -right-2 bg-emphasis text-inverse text-xs font-bold px-3 py-1 rounded-full transition-transform duration-300 hover:scale-105">
                         Available for hire
                     </div>
                     {% endif %}
@@ -34,12 +34,12 @@
 
             <!-- Hero Content -->
             <div class="w-full md:w-3/5 md:pl-12">
-                <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-navy">
+                <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-heading">
                     Hi, I'm <span class="gradient-text">{% if profile %}{{ profile.name }}{% else %}Armin{% endif %}</span><br>
-                    <span class="text-blue">{% if profile %}{{ profile.title }}{% else %}Data Scientist &amp; Developer{% endif %}</span>
+                    <span class="text-secondary">{% if profile %}{{ profile.title }}{% else %}Data Scientist &amp; Developer{% endif %}</span>
                 </h1>
 
-                <p class="text-lg text-gray-700 mb-6">
+                <p class="text-lg text-ink mb-6">
                     {% if profile %}{{ profile.bio }}{% else %}I transform complex data into actionable insights and build intelligent solutions.
                     With expertise in machine learning and software development, I help businesses make
                     data-driven decisions that drive growth.{% endif %}
@@ -48,7 +48,7 @@
                 <!-- Quick Links -->
                 <div class="flex flex-wrap gap-4">
                     <a href="{% url 'resume' %}"
-                        class="btn-primary bg-navy hover:bg-opacity-90 text-cream px-6 py-3 rounded-lg font-medium flex items-center">
+                        class="btn-primary bg-primary hover:bg-opacity-90 text-inverse px-6 py-3 rounded-lg font-medium flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -58,7 +58,7 @@
                         Resume
                     </a>
                     <a href="#projects"
-                        class="btn-primary bg-blue hover:bg-opacity-90 text-cream px-6 py-3 rounded-lg font-medium flex items-center">
+                        class="btn-primary bg-secondary hover:bg-opacity-90 text-inverse px-6 py-3 rounded-lg font-medium flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -67,7 +67,7 @@
                         Projects
                     </a>
                     <a href="#contact"
-                        class="btn-primary bg-teal hover:bg-opacity-90 text-navy px-6 py-3 rounded-lg font-medium flex items-center">
+                        class="btn-primary bg-accent hover:bg-opacity-90 text-heading px-6 py-3 rounded-lg font-medium flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -82,12 +82,12 @@
     </div>
 </section>
 <!-- Skills Section -->
-<section id="skills" class="bg-white py-12 animate-on-scroll">
+<section id="skills" class="bg-surface py-12 animate-on-scroll">
     
     <div class="container mx-auto px-4 md:px-8">
         <div class="flex justify-between items-center mb-8">
-            <h2 class="text-2xl md:text-3xl font-bold text-navy">Key Skills</h2>
-            <a href="{% url 'skills' %}" class="text-blue hover:text-navy font-medium flex items-center">
+            <h2 class="text-2xl md:text-3xl font-bold text-heading">Key Skills</h2>
+            <a href="{% url 'skills' %}" class="text-secondary hover:text-heading font-medium flex items-center">
                 View all
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-1" viewBox="0 0 20 20"
                     fill="currentColor">
@@ -100,20 +100,20 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             {% for skill in skills %}
-            <div class="skill-badge bg-cream rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow">
+            <div class="skill-badge bg-page rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow">
                 <div class="flex items-center mb-4">
-                    <div class="w-12 h-12 bg-navy rounded-lg flex items-center justify-center mr-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-cream" viewBox="0 0 24 24"
+                    <div class="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mr-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-inverse" viewBox="0 0 24 24"
                             fill="currentColor">
                             <path
                                 d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 14h8v2H8v-2zm0-4h8v2H8v-2z">
                             </path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold text-navy">{{ skill.name }}</h3>
+                    <h3 class="text-xl font-semibold text-heading">{{ skill.name }}</h3>
                 </div>
-                <p class="text-sm text-teal font-medium mb-2">{{ skill.start_date|years_since_display }}</p>
-                <p class="mt-4 text-gray-700">{{ skill.description|truncatechars:80 }}</p>
+                <p class="text-sm text-accent font-medium mb-2">{{ skill.start_date|years_since_display }}</p>
+                <p class="mt-4 text-ink">{{ skill.description|truncatechars:80 }}</p>
             </div>
             {% endfor %}
             
@@ -122,11 +122,11 @@
 </section>
 
 <!-- Featured Projects (from GitHub) -->
-<section id="projects" class="bg-teal bg-opacity-20 py-12 animate-on-scroll">
+<section id="projects" class="bg-accent bg-opacity-20 py-12 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8">
         <div class="flex justify-between items-center mb-8">
-            <h2 class="text-2xl md:text-3xl font-bold text-navy">Featured Projects</h2>
-            <a href="{% url 'projects' %}" class="text-blue hover:text-navy font-medium flex items-center">
+            <h2 class="text-2xl md:text-3xl font-bold text-heading">Featured Projects</h2>
+            <a href="{% url 'projects' %}" class="text-secondary hover:text-heading font-medium flex items-center">
                 View all
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
@@ -135,25 +135,25 @@
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             {% for project in projects %}
-            <div class="project-card bg-white rounded-xl overflow-hidden shadow-md">
+            <div class="project-card bg-surface rounded-xl overflow-hidden shadow-md">
                 <div class="h-48 relative overflow-hidden">
                     {% if project.image %}
                     <img src="{{ project.image.url }}" alt="{{ project.name }}"
                          class="w-full h-full object-cover transition-transform duration-300 hover:scale-110">
                     {% else %}
-                    <div class="w-full h-full {% cycle 'bg-navy' 'bg-blue' %} flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 {% cycle 'text-teal' 'text-cream' %} project-icon"
+                    <div class="w-full h-full {% cycle 'bg-primary' 'bg-secondary' %} flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 {% cycle 'text-accent' 'text-inverse' %} project-icon"
                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
                     </div>
                     {% endif %}
-                    <div class="absolute inset-0 bg-navy bg-opacity-80 flex items-center justify-center project-overlay">
+                    <div class="absolute inset-0 bg-primary bg-opacity-80 flex items-center justify-center project-overlay">
                         <div class="text-center p-4">
-                            <p class="text-cream mb-4">{{ project.description|truncatechars:80 }}</p>
+                            <p class="text-inverse mb-4">{{ project.description|truncatechars:80 }}</p>
                             <a href="{{ project.link }}" target="_blank"
-                                class="inline-block bg-teal text-navy px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 transition-colors">
+                                class="inline-block bg-accent text-heading px-4 py-2 rounded-lg font-medium hover:bg-opacity-90 transition-colors">
                                 View Details
                             </a>
                         </div>
@@ -161,20 +161,20 @@
                 </div>
                 <div class="p-6">
                     <div class="flex justify-between items-start mb-2">
-                        <h3 class="text-xl font-semibold text-navy">{{ project.name }}</h3>
+                        <h3 class="text-xl font-semibold text-heading">{{ project.name }}</h3>
                         {% if project.category %}
-                            <span class="{% cycle 'bg-blue' 'bg-red' %} text-xs text-white px-2 py-1 rounded">{{ project.category.name }}</span>
+                            <span class="{% cycle 'bg-secondary' 'bg-emphasis' %} text-xs text-inverse px-2 py-1 rounded">{{ project.category.name }}</span>
                         {% endif %}
                     </div>
-                    <p class="text-gray-700 mb-4">{{ project.description|truncatechars:80 }}</p>
+                    <p class="text-ink mb-4">{{ project.description|truncatechars:80 }}</p>
                     <div class="flex flex-wrap gap-2 mb-4">
                         {% for skill in project.skills_used.all %}
-                        <span class="bg-teal bg-opacity-20 text-blue text-xs px-2 py-1 rounded">{{ skill.name }}</span>
+                        <span class="bg-accent bg-opacity-20 text-secondary text-xs px-2 py-1 rounded">{{ skill.name }}</span>
                         {% empty %}
-                        <span class="text-gray-500 text-xs">No skills associated with this project.</span>
+                        <span class="text-muted text-xs">No skills associated with this project.</span>
                         {% endfor %}
                     </div>
-                    <a href="{{ project.link }}" target="_blank" class="text-blue hover:text-navy font-medium flex items-center">
+                    <a href="{{ project.link }}" target="_blank" class="text-secondary hover:text-heading font-medium flex items-center">
                         View project
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
@@ -183,13 +183,13 @@
                 </div>
             </div>
             {% empty %}
-            <div class="col-span-full text-center py-8 text-gray-500">No projects yet.</div>
+            <div class="col-span-full text-center py-8 text-muted">No projects yet.</div>
             {% endfor %}
         </div>
     </div>
 </section>
 <!-- Contact CTA -->
-<section id="contact" class="bg-navy text-cream py-16 animate-on-scroll">
+<section id="contact" class="bg-primary text-inverse py-16 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8 text-center">
         <h2 class="text-2xl md:text-3xl font-bold mb-4">Let's Work Together</h2>
         <p class="text-lg mb-8 max-w-2xl mx-auto">
@@ -198,7 +198,7 @@
         </p>
         <div class="flex flex-wrap justify-center gap-4">
             <a href="{% url 'contact' %}"
-                class="btn-primary bg-red hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium flex items-center">
+                class="btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-6 py-3 rounded-lg font-medium flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

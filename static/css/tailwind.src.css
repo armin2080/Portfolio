@@ -3,13 +3,77 @@
 @tailwind utilities;
 
 /* --------------------------------------------------------------------------
-   Custom styles (previously inlined in templates/base.html).
-   Kept as plain CSS so they do not depend on the Tailwind CDN runtime.
+   Self-hosted variable fonts (latin subset, includes German umlauts).
+   Serving these from our own domain means no request reaches Google, which
+   removes the third-party transfer that the privacy notice otherwise has to
+   disclose. Paths are relative so they resolve both in development and in the
+   collected static directory.
    -------------------------------------------------------------------------- */
 
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('../fonts/inter-latin.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Source Serif 4';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url('../fonts/source-serif-4-latin.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: swap;
+    src: url('../fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+
+/* --------------------------------------------------------------------------
+   Theme tokens.
+
+   These defaults mirror the palette the site originally shipped with, so the
+   page renders correctly even before a Theme is configured. An active Theme
+   overrides both blocks from the database (see base.html), which means
+   switching themes needs no CSS rebuild and no restart.
+
+   Colours are stored as raw RGB channels so Tailwind can still apply opacity
+   modifiers (bg-primary bg-opacity-80) through rgb(var(--c-x) / <alpha-value>).
+   -------------------------------------------------------------------------- */
+
+:root {
+    --c-primary: 29 53 87;
+    --c-secondary: 69 123 157;
+    --c-accent: 168 218 220;
+    --c-emphasis: 230 57 70;
+    --c-page: 241 250 238;
+    --c-surface: 255 255 255;
+    --c-inverse: 241 250 238;
+    --c-heading: 29 53 87;
+    --c-ink: 55 65 81;
+    --c-muted: 107 114 128;
+    --c-border: 209 213 219;
+
+    --font-heading: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   Custom styles.
+   -------------------------------------------------------------------------- */
+
+h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+}
+
 body {
-    font-family: 'Inter', sans-serif;
-    background-color: #F1FAEE;
+    font-family: var(--font-body);
+    background-color: rgb(var(--c-page));
 }
 
 .profile-image {
@@ -31,11 +95,13 @@ body {
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(29, 53, 87, 0.2);
+    box-shadow: 0 10px 15px -3px rgb(var(--c-primary) / 0.2);
 }
 
 .gradient-text {
-    background: linear-gradient(90deg, #1D3557, #457B9D);
+    /* Uses the heading token, not primary: in dark mode `primary` is a dark
+       surface colour and the gradient would be unreadable as text. */
+    background: linear-gradient(90deg, rgb(var(--c-heading)), rgb(var(--c-secondary)));
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -63,44 +129,12 @@ body {
     transform: scale(1.1);
 }
 
-/* Dark mode overrides */
-.dark body,
-.dark .bg-cream {
-    background-color: #1a1a2e;
-}
-
-.dark .bg-white {
-    background-color: #16213e;
-}
-
-.dark .text-gray-700 {
-    color: #cbd5e1;
-}
-
-.dark .text-navy {
-    color: #e2e8f0;
-}
-
-.dark .border-gray-300 {
-    border-color: #334155;
-}
-
-.dark .bg-gray-200 {
-    background-color: #334155;
-}
-
-.dark .bg-teal {
-    background-color: #1a1a2e;
-}
-
-.dark .bg-opacity-20 {
-    background-color: rgba(26, 26, 46, 0.8);
-}
-
-.dark .bg-navy {
-    background-color: #0f3460;
-}
-
+/* Dark mode.
+   The whole override layer that used to live here (.dark .bg-white,
+   .dark .text-gray-700, .dark .bg-teal, ...) is gone: every colour now comes
+   from a themed custom property, and the `.dark` block emitted from the active
+   Theme simply swaps the palette. Only the shadow depth still needs a rule,
+   because Tailwind's shadow utilities are black-based rather than tokenised. */
 .dark .shadow-md,
 .dark .shadow-lg {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
@@ -127,8 +161,8 @@ body {
     right: 2rem;
     width: 44px;
     height: 44px;
-    background-color: #1D3557;
-    color: #F1FAEE;
+    background-color: rgb(var(--c-primary));
+    color: rgb(var(--c-inverse));
     border: none;
     border-radius: 50%;
     cursor: pointer;
@@ -150,15 +184,7 @@ body {
 }
 
 #back-to-top:hover {
-    background-color: #457B9D;
+    background-color: rgb(var(--c-secondary));
     transform: translateY(-3px);
     box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
-}
-
-.dark #back-to-top {
-    background-color: #0f3460;
-}
-
-.dark #back-to-top:hover {
-    background-color: #457B9D;
 }
