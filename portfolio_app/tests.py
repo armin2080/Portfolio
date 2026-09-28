@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from dateutil.relativedelta import relativedelta
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
@@ -412,3 +413,40 @@ class ContactViewTests(TestCase):
         self.assertTrue(response.context["rate_limited"])
         self.assertEqual(len(mail.outbox), 3)
 
+
+
+# ---------------------------------------------------------------------------
+# Static assets
+# ---------------------------------------------------------------------------
+class StaticAssetTests(TestCase):
+    """Every `{% static %}` reference must resolve to a real file.
+
+    Static files are collected and content-hashed at deploy time
+    (ManifestStaticFilesStorage). A reference to a file that does not exist makes
+    that step fail, and because `collectstatic` runs as an ExecStartPre on the
+    production service, the site would not come back up. Catching it here keeps
+    that failure at test time instead of deploy time.
+    """
+
+    def _static_references(self):
+        import re
+        pattern = re.compile(r"{%\s*static\s+'([^']+)'\s*%}")
+        templates_dir = settings.BASE_DIR / 'templates'
+        for path in sorted(templates_dir.glob('*.html')):
+            for match in pattern.finditer(path.read_text()):
+                yield path.name, match.group(1)
+
+    def test_every_static_reference_resolves(self):
+        from django.contrib.staticfiles import finders
+
+        references = list(self._static_references())
+        self.assertTrue(references, 'expected at least one {% static %} reference')
+        for template, name in references:
+            with self.subTest(template=template, static=name):
+                self.assertIsNotNone(finders.find(name), f'{name} is missing')
+
+    def test_static_files_are_content_hashed(self):
+        # Guards the cache-busting behaviour: if hashing were removed, a browser
+        # could keep serving a stale stylesheet after a deploy.
+        backend = settings.STORAGES['staticfiles']['BACKEND']
+        self.assertIn('ManifestStaticFilesStorage', backend)

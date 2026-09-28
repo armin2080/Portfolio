@@ -164,7 +164,7 @@ body {
    Hidden at md+ so the desktop hero is unchanged. */
 .hero-ring {
     position: absolute;
-    inset: -14px;
+    inset: -8px;
     border-radius: 9999px;
     border: 1px solid rgb(var(--c-border));
     pointer-events: none;
@@ -173,7 +173,7 @@ body {
 .hero-ring::after {
     content: '';
     position: absolute;
-    inset: 6px;
+    inset: 4px;
     border-radius: 9999px;
     border: 1px solid rgb(var(--c-secondary) / 0.45);
     border-left-color: transparent;
