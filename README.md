@@ -18,7 +18,7 @@ I am a dedicated Data Scientist and Developer with expertise in transforming com
 
 ## Features
 - **Skills Section**: Displays key skills with automatically calculated years of experience, split into technical and soft skills.
-- **Projects Section**: Showcases various projects I've worked on, filterable by category.
+- **Projects Section**: Showcases various projects I've worked on, filterable by category. New public GitHub repositories are imported automatically once a day.
 - **Contact Page**: Allows users to get in touch via a contact form (protected by reCAPTCHA, a honeypot field, and rate limiting).
 - **Downloadable Resume**: Users can download my resume in both English and German formats.
 
@@ -48,8 +48,17 @@ Create a virtual environment and install dependencies:
 > **Note:** do **not** copy `.env.example` for local development. It is a
 > production template (`DEBUG=False`, `SECURE_SSL_REDIRECT=True`, database in
 > `/var/lib/portfolio`), which would make `runserver` redirect you to HTTPS on
-> `http://127.0.0.1:8000`. Locally you can simply skip `.env` — the defaults
-> are development-friendly (debug on, database at `db.sqlite3`).
+> `http://127.0.0.1:8000` and make reCAPTCHA keys mandatory. Locally you can
+> simply skip `.env` — the defaults are development-friendly (debug on, database
+> at `db.sqlite3`).
+>
+> The one exception is the GitHub project sync, which needs a username. A
+> minimal local `.env` is enough — no production values:
+>
+> ```
+> DEBUG=True
+> GITHUB_USERNAME=your-github-user
+> ```
 
 Apply migrations and start the development server:
    ```bash
@@ -164,6 +173,35 @@ It is deliberately built to avoid needing a cookie consent banner:
 Set `ANALYTICS_ENABLED=False` to turn collection off entirely. A privacy notice
 is published at `/privacy/`, which is required because the site processes
 personal data (contact messages) and records these statistics.
+
+### Projects from GitHub
+
+A daily timer imports your public GitHub repositories as projects, so a new
+repository appears on the site without any manual step. Run it by hand with:
+
+   ```bash
+   .venv/bin/python manage.py sync_github_projects --dry-run   # preview only
+   .venv/bin/python manage.py sync_github_projects             # write
+   ```
+
+- Set `GITHUB_USERNAME` (a local `.env` is enough — see the note above).
+  `GITHUB_TOKEN` is optional: without it the API allows 60 requests per hour,
+  which is far more than one sync a day needs.
+- **Nothing is ever deleted.** A repository that disappears from GitHub simply
+  stops being updated; the project stays until you remove it.
+- **Your edits always win.** Name, description, link and date are written only
+  on first import, so changing them in the admin is never undone. Photos,
+  categories, skills and the published flag are never touched — uploading a
+  screenshot later is safe.
+- Repositories are matched on GitHub's numeric id, which survives renames, and
+  forks, archived and disabled repositories are skipped.
+- Imported projects arrive published and show a placeholder graphic until you
+  upload an image. Untick **is published** to hide one (deleting it would not
+  help — the next run would import it again); the admin also has filters for
+  "Imported from GitHub" and "Still needs an image".
+
+The first run imports every public repository at once, so preview it with
+`--dry-run` first.
 
 ### Raspberry Pi deployment
 
