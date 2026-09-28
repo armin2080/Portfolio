@@ -4,19 +4,19 @@
 {% block meta_description %}How this website handles personal data: contact form messages, privacy-friendly visitor statistics, and third-party services.{% endblock %}
 
 {% block content %}
-<section class="bg-cream text-navy py-12">
+<section class="bg-page text-heading py-12">
     <div class="container mx-auto px-4 md:px-8 max-w-3xl">
 
         <h1 class="text-3xl md:text-4xl font-bold mb-2">Privacy Notice</h1>
-        <p class="text-sm text-gray-700 mb-10">
+        <p class="text-sm text-ink mb-10">
             Information about how personal data is handled on this website,
             as required by Art. 13 GDPR.
         </p>
 
-        <div class="bg-white rounded-xl shadow-md p-6 md:p-8 space-y-8 text-gray-700 leading-relaxed">
+        <div class="bg-surface rounded-xl shadow-md p-6 md:p-8 space-y-8 text-ink leading-relaxed">
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">1. Controller</h2>
+                <h2 class="text-xl font-semibold text-heading mb-2">1. Controller</h2>
                 <p>
                     {% if global_profile %}{{ global_profile.name }}{% else %}Armin Maddah Asl{% endif %}<br>
                     {% if global_profile.location %}{{ global_profile.location }}<br>{% endif %}
@@ -30,7 +30,7 @@
             </section>
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">2. Hosting and server logs</h2>
+                <h2 class="text-xl font-semibold text-heading mb-2">2. Hosting and server logs</h2>
                 <p>
                     This website runs on a privately operated server. When you visit a
                     page, the web server necessarily processes your IP address and
@@ -43,7 +43,7 @@
                     network, which acts as a reverse proxy. Cloudflare processes
                     connection data as part of providing that service. See the
                     <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener"
-                       class="text-blue hover:text-navy underline">Cloudflare privacy policy</a>.
+                       class="text-secondary hover:text-heading underline">Cloudflare privacy policy</a>.
                 </p>
                 <p class="mt-2">
                     <strong>Legal basis:</strong> Art. 6(1)(f) GDPR — legitimate interest
@@ -52,7 +52,7 @@
             </section>
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">3. Contact form</h2>
+                <h2 class="text-xl font-semibold text-heading mb-2">3. Contact form</h2>
                 <p>
                     If you use the contact form, your name, email address, message and
                     the IP address the message was sent from are stored so that I can
@@ -71,7 +71,7 @@
             </section>
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">4. Visitor statistics</h2>
+                <h2 class="text-xl font-semibold text-heading mb-2">4. Visitor statistics</h2>
                 <p>
                     I record anonymous statistics about how this website is used, so I
                     can see which content is useful. This runs on my own server and
@@ -109,7 +109,7 @@
             </section>
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">5. Cookies and local storage</h2>
+                <h2 class="text-xl font-semibold text-heading mb-2">5. Cookies and local storage</h2>
                 <p>
                     This website sets <strong>no tracking cookies</strong>. A single
                     session cookie is created only if you sign in to the administration
@@ -122,21 +122,24 @@
             </section>
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">6. Third-party services</h2>
-                <ul class="list-disc list-inside space-y-2">
-                    <li>
-                        <strong>Google Fonts</strong> — the typeface used on this site is
-                        loaded from Google's servers. Your IP address is therefore
-                        transmitted to Google when a page loads. See the
-                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener"
-                           class="text-blue hover:text-navy underline">Google privacy policy</a>.
-                    </li>
+                <h2 class="text-xl font-semibold text-heading mb-2">6. Third-party services</h2>
+                <p>
+                    The typefaces used on this site are
+                    <strong>served from this server</strong> and are not requested from
+                    Google or any other font provider, so no data is shared with a
+                    third party in order to display text. Fonts are used under the
+                    SIL Open Font License.
+                </p>
+                <ul class="list-disc list-inside space-y-2 mt-3">
                     <li>
                         <strong>Google reCAPTCHA</strong> — used on the contact form to
                         stop spam. It may set cookies and transmits your IP address and
                         usage data to Google. See the
                         <a href="https://policies.google.com/privacy" target="_blank" rel="noopener"
-                           class="text-blue hover:text-navy underline">Google privacy policy</a>.
+                           class="text-secondary hover:text-heading underline">Google privacy policy</a>.
+                    </li>
+                    <li>
+                        <strong>Cloudflare</strong> — see section 2 above.
                     </li>
                 </ul>
                 <p class="mt-2">
@@ -147,7 +150,7 @@
             </section>
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">7. Data retention</h2>
+                <h2 class="text-xl font-semibold text-heading mb-2">7. Data retention</h2>
                 <ul class="list-disc list-inside space-y-1">
                     <li>Visitor statistics: {{ retention_days }} days.</li>
                     <li>Contact form messages: until the enquiry is resolved, then deleted on request.</li>
@@ -156,7 +159,7 @@
             </section>
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">8. Your rights</h2>
+                <h2 class="text-xl font-semibold text-heading mb-2">8. Your rights</h2>
                 <p>Under the GDPR you have the right to:</p>
                 <ul class="list-disc list-inside space-y-1 mt-2">
                     <li>request access to the personal data held about you (Art. 15);</li>
@@ -178,7 +181,7 @@
             </section>
 
             <section>
-                <h2 class="text-xl font-semibold text-navy mb-2">9. Changes to this notice</h2>
+                <h2 class="text-xl font-semibold text-heading mb-2">9. Changes to this notice</h2>
                 <p>
                     This notice may be updated if the website or its data processing
                     changes. The version published here is always the current one.

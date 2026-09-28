@@ -4,7 +4,7 @@
 {% block meta_description %}Get in touch with Armin Maddah Asl for collaboration, project ideas, or opportunities.{% endblock %}
 
 {% block content %}
-<section id="contact" class="bg-teal text-navy py-16 animate-on-scroll">
+<section id="contact" class="bg-accent text-heading py-16 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8 text-center">
         <h2 class="text-3xl md:text-4xl font-bold mb-4">Get in Touch</h2>
         <p class="text-lg mb-8 max-w-2xl mx-auto">
@@ -18,7 +18,7 @@
         </div>
         {% endif %}
         <form id="contactForm" method="POST" action="{% url 'contact' %}" 
-              class="bg-cream p-6 rounded-lg shadow-md max-w-md mx-auto text-left"> <!-- Centered and limited width -->
+              class="bg-page p-6 rounded-lg shadow-md max-w-md mx-auto text-left"> <!-- Centered and limited width -->
             {% csrf_token %}
 
             {% if form.non_field_errors %}
@@ -34,7 +34,7 @@
                 <label for="id_name" class="sr-only">Your Name</label>
                 <input type="text" id="id_name" name="name" value="{{ form.name.value|default:'' }}"
                        placeholder="Your Name" required autocomplete="name"
-                       class="w-full p-3 border rounded {% if form.name.errors %}border-red-500{% else %}border-gray-300{% endif %} focus:outline-none focus:ring focus:ring-blue">
+                       class="w-full p-3 border rounded {% if form.name.errors %}border-red-500{% else %}border-border{% endif %} focus:outline-none focus:ring focus:ring-secondary">
                 {% for error in form.name.errors %}
                 <p class="text-red-600 text-sm mt-1">{{ error }}</p>
                 {% endfor %}
@@ -44,7 +44,7 @@
                 <label for="id_email" class="sr-only">Your Email</label>
                 <input type="email" id="id_email" name="email" value="{{ form.email.value|default:'' }}"
                        placeholder="Your Email" required autocomplete="email"
-                       class="w-full p-3 border rounded {% if form.email.errors %}border-red-500{% else %}border-gray-300{% endif %} focus:outline-none focus:ring focus:ring-blue">
+                       class="w-full p-3 border rounded {% if form.email.errors %}border-red-500{% else %}border-border{% endif %} focus:outline-none focus:ring focus:ring-secondary">
                 {% for error in form.email.errors %}
                 <p class="text-red-600 text-sm mt-1">{{ error }}</p>
                 {% endfor %}
@@ -53,7 +53,7 @@
             <div class="mb-4">
                 <label for="id_message" class="sr-only">Your Message</label>
                 <textarea id="id_message" name="message" placeholder="Your Message" rows="4"
-                          class="w-full p-3 border rounded {% if form.message.errors %}border-red-500{% else %}border-gray-300{% endif %} focus:outline-none focus:ring focus:ring-blue">{{ form.message.value|default:'' }}</textarea>
+                          class="w-full p-3 border rounded {% if form.message.errors %}border-red-500{% else %}border-border{% endif %} focus:outline-none focus:ring focus:ring-secondary">{{ form.message.value|default:'' }}</textarea>
                 {% for error in form.message.errors %}
                 <p class="text-red-600 text-sm mt-1">{{ error }}</p>
                 {% endfor %}
@@ -65,7 +65,7 @@
             {% endfor %}
 
             <button type="submit"
-                    class="btn-primary bg-red hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium flex items-center mx-auto">
+                    class="btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-6 py-3 rounded-lg font-medium flex items-center mx-auto">
                 Send Message
             </button>
         </form>
@@ -81,10 +81,10 @@
             {% endwith %}
             <div>
                 <!-- Social Media Links -->
-                {% if global_profile.whatsapp_url %}<a href="{{ global_profile.whatsapp_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>WhatsApp</a> | {% endif %}
-                {% if global_profile.linkedin_url %}<a href="{{ global_profile.linkedin_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>LinkedIn</a> | {% endif %}
-                {% if global_profile.telegram_url %}<a href="{{ global_profile.telegram_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>Telegram</a> | {% endif %}
-                {% if global_profile.github_url %}<a href="{{ global_profile.github_url }}" target="_blank" rel="noopener" class='text-navy hover:text-blue'>GitHub</a>{% endif %}
+                {% if global_profile.whatsapp_url %}<a href="{{ global_profile.whatsapp_url }}" target="_blank" rel="noopener" class='text-heading hover:text-secondary'>WhatsApp</a> | {% endif %}
+                {% if global_profile.linkedin_url %}<a href="{{ global_profile.linkedin_url }}" target="_blank" rel="noopener" class='text-heading hover:text-secondary'>LinkedIn</a> | {% endif %}
+                {% if global_profile.telegram_url %}<a href="{{ global_profile.telegram_url }}" target="_blank" rel="noopener" class='text-heading hover:text-secondary'>Telegram</a> | {% endif %}
+                {% if global_profile.github_url %}<a href="{{ global_profile.github_url }}" target="_blank" rel="noopener" class='text-heading hover:text-secondary'>GitHub</a>{% endif %}
             </div>
         </div>
 

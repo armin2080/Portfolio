@@ -31,13 +31,23 @@
 
     <title>{% block title %}{% endblock %} | Armin Maddah Asl</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap">
+    <!-- Self-hosted fonts are declared in tailwind.css; no request leaves this
+         domain, which is why the privacy notice no longer mentions Google Fonts. -->
     <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+
+    {% if theme %}
+    {% comment %}
+    Palette + typography from the active Theme. Built server-side from
+    admin-validated hex colours and a whitelisted font list, so no arbitrary
+    text can reach this element. (Use {% comment %} here: Django's {# #}
+    shorthand is single-line only and would render the text otherwise.)
+    {% endcomment %}
+    <style>{{ theme.css_variables|safe }}</style>
+    {% endif %}
+
     <script>
-        // Apply the saved theme before first paint to avoid a flash of light mode.
+        // Apply the saved colour scheme before first paint to avoid a flash of
+        // light mode. Switching swaps the Theme's `.dark` palette variables.
         if (localStorage.getItem('dark-mode') === 'true') {
             document.documentElement.classList.add('dark');
         }
@@ -49,24 +59,24 @@
 
 <body>
     <a href="#main-content"
-       class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-navy focus:px-4 focus:py-2 focus:text-cream">
+       class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-inverse">
         Skip to content
     </a>
     <div class="min-h-screen flex flex-col">
         <!-- Navigation -->
-        <nav class="bg-navy text-cream py-4" aria-label="Main">
+        <nav class="bg-primary text-inverse py-4" aria-label="Main">
             {% with current=request.resolver_match.url_name %}
             <div class="container mx-auto px-4 md:px-8 flex justify-between items-center">
                 <a href="{% url 'index' %}" class="text-2xl font-bold">Armin</a>
                 <div class="hidden md:flex space-x-6">
-                    <a href="{% url 'index' %}" {% if current == 'index' %}aria-current="page" class="text-teal font-semibold"{% else %}class="hover:text-teal transition-transform transform hover:scale-105"{% endif %}>Homepage</a>
-                    <a href="{% url 'skills' %}" {% if current == 'skills' %}aria-current="page" class="text-teal font-semibold"{% else %}class="hover:text-teal transition-transform transform hover:scale-105"{% endif %}>Skills</a>
-                    <a href="{% url 'projects' %}" {% if current == 'projects' %}aria-current="page" class="text-teal font-semibold"{% else %}class="hover:text-teal transition-transform transform hover:scale-105"{% endif %}>Projects</a>
-                    <a href="{% url 'resume' %}" {% if current == 'resume' %}aria-current="page" class="text-teal font-semibold"{% else %}class="hover:text-teal transition-transform transform hover:scale-105"{% endif %}>Resume</a>
-                    <a href="{% url 'contact' %}" {% if current == 'contact' or current == 'contact_success' %}aria-current="page" class="text-teal font-semibold"{% else %}class="hover:text-teal transition-transform transform hover:scale-105"{% endif %}>Contact</a>
+                    <a href="{% url 'index' %}" {% if current == 'index' %}aria-current="page" class="text-accent font-semibold"{% else %}class="hover:text-accent transition-transform transform hover:scale-105"{% endif %}>Homepage</a>
+                    <a href="{% url 'skills' %}" {% if current == 'skills' %}aria-current="page" class="text-accent font-semibold"{% else %}class="hover:text-accent transition-transform transform hover:scale-105"{% endif %}>Skills</a>
+                    <a href="{% url 'projects' %}" {% if current == 'projects' %}aria-current="page" class="text-accent font-semibold"{% else %}class="hover:text-accent transition-transform transform hover:scale-105"{% endif %}>Projects</a>
+                    <a href="{% url 'resume' %}" {% if current == 'resume' %}aria-current="page" class="text-accent font-semibold"{% else %}class="hover:text-accent transition-transform transform hover:scale-105"{% endif %}>Resume</a>
+                    <a href="{% url 'contact' %}" {% if current == 'contact' or current == 'contact_success' %}aria-current="page" class="text-accent font-semibold"{% else %}class="hover:text-accent transition-transform transform hover:scale-105"{% endif %}>Contact</a>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <button id="dark-mode-toggle" class="text-cream hover:text-teal transition-colors focus:outline-none" aria-label="Toggle dark mode">
+                    <button id="dark-mode-toggle" class="text-inverse hover:text-accent transition-colors focus:outline-none" aria-label="Toggle dark mode">
                         <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
                         </svg>
@@ -74,7 +84,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
                         </svg>
                     </button>
-                    <button id="mobile-menu-button" class="md:hidden text-cream focus:outline-none"
+                    <button id="mobile-menu-button" class="md:hidden text-inverse focus:outline-none"
                             aria-label="Toggle navigation menu" aria-controls="mobile-menu" aria-expanded="false">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
                             stroke="currentColor" aria-hidden="true">
@@ -85,12 +95,12 @@
                 </div>
             </div>
             <!-- Mobile menu -->
-            <div id="mobile-menu" class="hidden md:hidden bg-navy px-4 py-2">
-                <a href="{% url 'index' %}" class="block py-2 {% if current == 'index' %}text-teal font-semibold{% else %}hover:text-teal transition-colors{% endif %}" {% if current == 'index' %}aria-current="page"{% endif %}>Homepage</a>
-                <a href="{% url 'skills' %}" class="block py-2 {% if current == 'skills' %}text-teal font-semibold{% else %}hover:text-teal transition-colors{% endif %}" {% if current == 'skills' %}aria-current="page"{% endif %}>Skills</a>
-                <a href="{% url 'projects' %}" class="block py-2 {% if current == 'projects' %}text-teal font-semibold{% else %}hover:text-teal transition-colors{% endif %}" {% if current == 'projects' %}aria-current="page"{% endif %}>Projects</a>
-                <a href="{% url 'resume' %}" class="block py-2 {% if current == 'resume' %}text-teal font-semibold{% else %}hover:text-teal transition-colors{% endif %}" {% if current == 'resume' %}aria-current="page"{% endif %}>Resume</a>
-                <a href="{% url 'contact' %}" class="block py-2 {% if current == 'contact' or current == 'contact_success' %}text-teal font-semibold{% else %}hover:text-teal transition-colors{% endif %}" {% if current == 'contact' or current == 'contact_success' %}aria-current="page"{% endif %}>Contact</a>
+            <div id="mobile-menu" class="hidden md:hidden bg-primary px-4 py-2">
+                <a href="{% url 'index' %}" class="block py-2 {% if current == 'index' %}text-accent font-semibold{% else %}hover:text-accent transition-colors{% endif %}" {% if current == 'index' %}aria-current="page"{% endif %}>Homepage</a>
+                <a href="{% url 'skills' %}" class="block py-2 {% if current == 'skills' %}text-accent font-semibold{% else %}hover:text-accent transition-colors{% endif %}" {% if current == 'skills' %}aria-current="page"{% endif %}>Skills</a>
+                <a href="{% url 'projects' %}" class="block py-2 {% if current == 'projects' %}text-accent font-semibold{% else %}hover:text-accent transition-colors{% endif %}" {% if current == 'projects' %}aria-current="page"{% endif %}>Projects</a>
+                <a href="{% url 'resume' %}" class="block py-2 {% if current == 'resume' %}text-accent font-semibold{% else %}hover:text-accent transition-colors{% endif %}" {% if current == 'resume' %}aria-current="page"{% endif %}>Resume</a>
+                <a href="{% url 'contact' %}" class="block py-2 {% if current == 'contact' or current == 'contact_success' %}text-accent font-semibold{% else %}hover:text-accent transition-colors{% endif %}" {% if current == 'contact' or current == 'contact_success' %}aria-current="page"{% endif %}>Contact</a>
             </div>
             {% endwith %}
         </nav>
@@ -107,23 +117,23 @@
         </button>
 
         <!-- Footer -->
-        <footer class="bg-navy bg-opacity-90 text-cream py-8">
+        <footer class="bg-primary bg-opacity-90 text-inverse py-8">
             <div class="container mx-auto px-4 md:px-8">
                 <div class="flex flex-col md:flex-row justify-between items-center">
                     <div class="mb-4 md:mb-0 text-center md:text-left">
                         <p class="text-sm">© 2026 Armin. All rights reserved.</p>
-                        <p class="text-xs text-gray-400 mt-1">
-                            <a href="{% url 'privacy' %}" class="hover:text-teal transition-colors">Privacy</a>
+                        <p class="text-xs text-muted mt-1">
+                            <a href="{% url 'privacy' %}" class="hover:text-accent transition-colors">Privacy</a>
                             {% if request.user.is_staff %}
-                            · <a href="{% url 'dashboard' %}" class="hover:text-teal transition-colors">Statistics</a>
+                            · <a href="{% url 'dashboard' %}" class="hover:text-accent transition-colors">Statistics</a>
                             {% endif %}
                         </p>
                         {% if last_updated %}
-                        <p class="text-xs text-gray-400 mt-1">Last updated {{ last_updated|date:"M Y" }}</p>
+                        <p class="text-xs text-muted mt-1">Last updated {{ last_updated|date:"M Y" }}</p>
                         {% endif %}
                     </div>
                     <div class="flex space-x-4">
-                        <a href="https://github.com/armin2080" target="_blank" class="text-cream hover:text-teal transition-colors">
+                        <a href="https://github.com/armin2080" target="_blank" class="text-inverse hover:text-accent transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor"
                                 viewBox="0 0 24 24">
                                 <path
@@ -131,7 +141,7 @@
                                 </path>
                             </svg>
                         </a>
-                        <a href="https://www.linkedin.com/in/armin-maddah-asl-493838219/" target="_blank" class="text-cream hover:text-teal transition-colors">
+                        <a href="https://www.linkedin.com/in/armin-maddah-asl-493838219/" target="_blank" class="text-inverse hover:text-accent transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor"
                                 viewBox="0 0 24 24">
                                 <path
@@ -139,7 +149,7 @@
                                 </path>
                             </svg>
                         </a>
-                        <a href="https://www.t.me/armin_2080" target="_blank" class="text-cream hover:text-teal transition-colors">
+                        <a href="https://www.t.me/armin_2080" target="_blank" class="text-inverse hover:text-accent transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor"
                                 viewBox="0 0 24 24">
                                 <path

@@ -5,7 +5,7 @@
 {% block meta_description %}Explore the technical and soft skills of Armin Maddah Asl, including Python, Machine Learning, Django, and more.{% endblock %}
 
 {% block content %}
-<section id="skills" class="bg-cream text-navy py-16 animate-on-scroll">
+<section id="skills" class="bg-page text-heading py-16 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8 text-center">
         <h2 class="text-3xl md:text-4xl font-bold mb-8">My Skills</h2>
         <p class="text-lg mb-8 max-w-xl mx-auto">
@@ -15,20 +15,20 @@
         <!-- Skills Grid -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             {% for skill in skills %}
-            <div class="skill-badge bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow">
+            <div class="skill-badge bg-surface rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow">
                 <div class="flex items-center mb-4">
-                    <div class="w-12 h-12 bg-navy rounded-lg flex items-center justify-center mr-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-teal" viewBox="0 0 24 24"
+                    <div class="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mr-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-accent" viewBox="0 0 24 24"
                             fill="currentColor">
                             <path
                                 d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 14h8v2H8v-2zm0-4h8v2H8v-2z">
                             </path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold text-navy">{{ skill.name }}</h3>
+                    <h3 class="text-xl font-semibold text-heading">{{ skill.name }}</h3>
                 </div>
-                <p class="text-sm text-teal font-medium mb-3">{{ skill.start_date|years_since_display }} experience</p>
-                <p class="mt-2 text-gray-700 text-left">{{ skill.description }}</p>
+                <p class="text-sm text-accent font-medium mb-3">{{ skill.start_date|years_since_display }} experience</p>
+                <p class="mt-2 text-ink text-left">{{ skill.description }}</p>
 
             </div>
             {% endfor %}

@@ -4,6 +4,8 @@
 !/static/favicon.ico
 !/static/favicon.png
 !/static/css/
+!/static/js/
+!/static/fonts/
 db.sqlite3
 /env/
 

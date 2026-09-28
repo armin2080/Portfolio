@@ -1,0 +1,143 @@
+/* Styles for the Themes admin section (see ThemeAdmin.Media). */
+
+/* Hex field: a colour picker next to an editable hex text input. The text
+   input is the actual form field, so a hex code can be typed or pasted. */
+.portfolio-hex-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.portfolio-color-picker {
+    width: 40px;
+    height: 34px;
+    padding: 2px;
+    border: 1px solid var(--hairline-color, #ccc);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.portfolio-hex-input {
+    width: 110px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-transform: uppercase;
+}
+
+/* Briefly flag a value the browser could not parse as a colour. */
+.portfolio-hex-input.portfolio-hex-invalid {
+    border-color: var(--error-fg, #ba2121);
+    background-color: rgba(186, 33, 33, 0.06);
+}
+
+/* --- Swatch strip in the change list --- */
+.theme-swatches {
+    display: inline-flex;
+    gap: 2px;
+    vertical-align: middle;
+}
+
+.theme-swatch {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+/* --- Preview block on the change form --- */
+.theme-preview-swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.theme-swatch-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.theme-swatch-item code {
+    font-size: 11px;
+    opacity: 0.75;
+}
+
+#theme-live-mock {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.theme-mock {
+    width: 230px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    font-size: 12px;
+}
+
+.theme-mock-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.7;
+    padding: 6px 10px 0;
+}
+
+.theme-mock-nav {
+    padding: 8px 12px;
+    font-weight: 700;
+}
+
+.theme-mock-body {
+    padding: 12px;
+}
+
+.theme-mock-body strong {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.theme-mock-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+/* --- Contrast report --- */
+.theme-preview-heading {
+    margin: 16px 0 6px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.75;
+}
+
+.theme-contrast-list {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.theme-contrast-list li {
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.theme-contrast-ratio {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    opacity: 0.75;
+    white-space: nowrap;
+}
+
+.theme-contrast-ok {
+    color: var(--success-fg, #0a7d3f);
+    font-weight: 600;
+    margin: 0;
+}

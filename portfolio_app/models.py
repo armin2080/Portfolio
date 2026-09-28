@@ -1,6 +1,10 @@
+import re
+
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 
 
 class Profile(models.Model):
@@ -213,3 +217,341 @@ class PageView(models.Model):
 
     def __str__(self):
         return f"{self.path} @ {self.viewed_at:%Y-%m-%d %H:%M}"
+
+
+# ---------------------------------------------------------------------------
+# Theming
+# ---------------------------------------------------------------------------
+
+# Hex colours only: these values are interpolated into a <style> block, so a
+# permissive field would be a CSS/HTML injection vector. The three-digit
+# shorthand and a missing '#' are accepted here and canonicalised to '#RRGGBB'
+# by normalize_hex_color() before anything is stored or emitted.
+HEX_COLOR_VALIDATOR = RegexValidator(
+    regex=r'^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$',
+    message=(
+        'Enter a hex colour such as #1D3557 (or the shorthand #abc). '
+        'Letters A-F and digits 0-9 only.'
+    ),
+)
+
+# role -> (label, help text). The template classes (bg-primary, text-muted, ...)
+# map onto these, so a theme is a palette of roles rather than colour names.
+COLOR_ROLES = (
+    ('primary', 'Primary', 'Navigation, footer and primary buttons'),
+    ('secondary', 'Secondary', 'Links and secondary actions'),
+    ('accent', 'Accent', 'Soft highlights, badges and subtle section backgrounds'),
+    ('emphasis', 'Emphasis', 'Strong accents and calls to action'),
+    ('page', 'Page background', 'The overall page background'),
+    ('surface', 'Surface', 'Cards and panels'),
+    ('inverse', 'Inverse text', 'Text drawn on top of Primary'),
+    ('heading', 'Headings', 'Headings and brand-coloured emphasis text'),
+    ('ink', 'Body text', 'Main body copy'),
+    ('muted', 'Muted text', 'Secondary text, captions and metadata'),
+    ('border', 'Border', 'Dividers and input borders'),
+)
+
+# Whitelisted font stacks. Stored as a key so no arbitrary CSS can reach the
+# page through the font fields.
+FONT_STACKS = {
+    'inter': "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    'source-serif': "'Source Serif 4', Georgia, 'Times New Roman', serif",
+    'jetbrains-mono': "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+    'system': "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+}
+
+# Values matching the colours the site shipped with, so an installation without
+# a Theme row still renders exactly as before.
+DEFAULT_LIGHT_PALETTE = {
+    'primary': '#1D3557',
+    'secondary': '#457B9D',
+    'accent': '#A8DADC',
+    'emphasis': '#E63946',
+    'page': '#F1FAEE',
+    'surface': '#FFFFFF',
+    'inverse': '#F1FAEE',
+    # Headings keep their brand colour in light mode...
+    'heading': '#1D3557',
+    'ink': '#374151',
+    'muted': '#6B7280',
+    'border': '#D1D5DB',
+}
+
+DEFAULT_DARK_PALETTE = {
+    'primary': '#0F3460',
+    'secondary': '#457B9D',
+    'accent': '#A8DADC',
+    'emphasis': '#E63946',
+    'page': '#1A1A2E',
+    'surface': '#16213E',
+    'inverse': '#F1FAEE',
+    # ...but must go light in dark mode: a dark primary on a dark page would be
+    # unreadable. This is why headings cannot simply reuse the `primary` token.
+    'heading': '#E2E8F0',
+    'ink': '#CBD5E1',
+    'muted': '#94A3B8',
+    'border': '#334155',
+}
+
+
+# role -> help text, so field definitions look it up by name. Indexing
+# COLOR_ROLES positionally is fragile: inserting a role silently shifted the
+# help text of every field after it.
+ROLE_HELP = {role: help_text for role, _label, help_text in COLOR_ROLES}
+
+# Accepted spellings of a hex colour, with or without the leading '#'.
+_FULL_HEX = re.compile(r'^#?([0-9a-fA-F]{6})$')
+_SHORT_HEX = re.compile(r'^#?([0-9a-fA-F]{3})$')
+
+
+def normalize_hex_color(value):
+    """Normalise a hex colour to the canonical ``#RRGGBB`` form.
+
+    Accepts the spellings people actually type — ``#1d3557``, ``1d3557``,
+    ``#1D3557`` and the three-digit shorthand ``#abc`` — and returns uppercase
+    with a leading '#'. Raises ``ValidationError`` for anything else, so a
+    non-colour value can never reach the stylesheet.
+    """
+    if value is None:
+        raise ValidationError('Enter a colour as a hex value.')
+
+    candidate = str(value).strip()
+
+    match = _FULL_HEX.match(candidate)
+    if not match:
+        short = _SHORT_HEX.match(candidate)
+        if short:
+            # '#abc' -> '#AABBCC'
+            candidate = '#' + ''.join(ch * 2 for ch in short.group(1))
+            match = _FULL_HEX.match(candidate)
+
+    if not match:
+        raise ValidationError(
+            'Enter a colour as a hex value, for example #1D3557.'
+        )
+
+    return '#' + match.group(1).upper()
+
+
+def hex_to_rgb_channels(value):
+    """'#1D3557' -> '29 53 87'.
+
+    Tailwind cannot apply an opacity modifier to an opaque hex, so the custom
+    properties hold raw channels and the config wraps them in rgb(... / <alpha>).
+
+    Normalises first, so a shorthand or '#'-less value still resolves correctly
+    and anything unparseable degrades to black rather than breaking the
+    stylesheet.
+    """
+    try:
+        value = normalize_hex_color(value)
+    except ValidationError:
+        return '0 0 0'
+    value = value.lstrip('#')
+    return f"{int(value[0:2], 16)} {int(value[2:4], 16)} {int(value[4:6], 16)}"
+
+
+# Cache key for the active theme, read on every request by the context
+# processor. Invalidated here so an admin edit takes effect immediately.
+THEME_CACHE_KEY = 'portfolio:active-theme'
+
+
+class Theme(models.Model):
+    """A colour palette (light + dark) and typography, editable in the admin.
+
+    The values are published as CSS custom properties; the Tailwind colour
+    utilities resolve to those variables, so activating a theme restyles the
+    site immediately with no rebuild and no restart.
+    """
+
+    class FontFamily(models.TextChoices):
+        INTER = 'inter', 'Inter — clean sans-serif'
+        SOURCE_SERIF = 'source-serif', 'Source Serif 4 — serif (editorial)'
+        JETBRAINS_MONO = 'jetbrains-mono', 'JetBrains Mono — monospace'
+        SYSTEM = 'system', 'System default'
+
+    name = models.CharField(max_length=100, unique=True)
+    is_active = models.BooleanField(
+        default=False,
+        help_text='Only one theme can be active; activating this one deactivates the others.',
+    )
+
+    # --- Light palette ---
+    light_primary = models.CharField(
+        'Primary', max_length=7, default=DEFAULT_LIGHT_PALETTE['primary'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['primary'],
+    )
+    light_secondary = models.CharField(
+        'Secondary', max_length=7, default=DEFAULT_LIGHT_PALETTE['secondary'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['secondary'],
+    )
+    light_accent = models.CharField(
+        'Accent', max_length=7, default=DEFAULT_LIGHT_PALETTE['accent'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['accent'],
+    )
+    light_emphasis = models.CharField(
+        'Emphasis', max_length=7, default=DEFAULT_LIGHT_PALETTE['emphasis'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['emphasis'],
+    )
+    light_page = models.CharField(
+        'Page background', max_length=7, default=DEFAULT_LIGHT_PALETTE['page'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['page'],
+    )
+    light_surface = models.CharField(
+        'Surface', max_length=7, default=DEFAULT_LIGHT_PALETTE['surface'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['surface'],
+    )
+    light_inverse = models.CharField(
+        'Inverse text', max_length=7, default=DEFAULT_LIGHT_PALETTE['inverse'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['inverse'],
+    )
+    light_heading = models.CharField(
+        'Headings', max_length=7, default=DEFAULT_LIGHT_PALETTE['heading'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['heading'],
+    )
+    light_ink = models.CharField(
+        'Body text', max_length=7, default=DEFAULT_LIGHT_PALETTE['ink'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['ink'],
+    )
+    light_muted = models.CharField(
+        'Muted text', max_length=7, default=DEFAULT_LIGHT_PALETTE['muted'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['muted'],
+    )
+    light_border = models.CharField(
+        'Border', max_length=7, default=DEFAULT_LIGHT_PALETTE['border'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['border'],
+    )
+
+    # --- Dark palette ---
+    dark_primary = models.CharField(
+        'Primary', max_length=7, default=DEFAULT_DARK_PALETTE['primary'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['primary'],
+    )
+    dark_secondary = models.CharField(
+        'Secondary', max_length=7, default=DEFAULT_DARK_PALETTE['secondary'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['secondary'],
+    )
+    dark_accent = models.CharField(
+        'Accent', max_length=7, default=DEFAULT_DARK_PALETTE['accent'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['accent'],
+    )
+    dark_emphasis = models.CharField(
+        'Emphasis', max_length=7, default=DEFAULT_DARK_PALETTE['emphasis'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['emphasis'],
+    )
+    dark_page = models.CharField(
+        'Page background', max_length=7, default=DEFAULT_DARK_PALETTE['page'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['page'],
+    )
+    dark_surface = models.CharField(
+        'Surface', max_length=7, default=DEFAULT_DARK_PALETTE['surface'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['surface'],
+    )
+    dark_inverse = models.CharField(
+        'Inverse text', max_length=7, default=DEFAULT_DARK_PALETTE['inverse'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['inverse'],
+    )
+    dark_heading = models.CharField(
+        'Headings', max_length=7, default=DEFAULT_DARK_PALETTE['heading'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['heading'],
+    )
+    dark_ink = models.CharField(
+        'Body text', max_length=7, default=DEFAULT_DARK_PALETTE['ink'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['ink'],
+    )
+    dark_muted = models.CharField(
+        'Muted text', max_length=7, default=DEFAULT_DARK_PALETTE['muted'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['muted'],
+    )
+    dark_border = models.CharField(
+        'Border', max_length=7, default=DEFAULT_DARK_PALETTE['border'],
+        validators=[HEX_COLOR_VALIDATOR], help_text=ROLE_HELP['border'],
+    )
+
+    # --- Typography ---
+    font_heading = models.CharField(
+        max_length=20, choices=FontFamily.choices, default=FontFamily.INTER,
+        help_text='Used for headings and the site name.',
+    )
+    font_body = models.CharField(
+        max_length=20, choices=FontFamily.choices, default=FontFamily.INTER,
+        help_text='Used for body copy and interface text.',
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_active', 'name']
+        verbose_name = "Theme"
+        verbose_name_plural = "Themes"
+
+    def __str__(self):
+        return f"{self.name}{' (active)' if self.is_active else ''}"
+
+    def save(self, *args, **kwargs):
+        # Store colours in one canonical form ('#RRGGBB') regardless of how they
+        # were typed, so the database and the generated CSS are always consistent.
+        for mode in ('light', 'dark'):
+            for role, _label, _help in COLOR_ROLES:
+                field = f'{mode}_{role}'
+                try:
+                    setattr(self, field, normalize_hex_color(getattr(self, field)))
+                except ValidationError:
+                    # Leave it alone; full_clean()/the form reports the problem.
+                    pass
+
+        super().save(*args, **kwargs)
+        if self.is_active:
+            # Exactly one active theme. Uses .update() to avoid recursion; the
+            # cache is cleared below so the change is picked up on next request.
+            Theme.objects.exclude(pk=self.pk).filter(is_active=True).update(is_active=False)
+        cache.delete(THEME_CACHE_KEY)
+
+    def delete(self, *args, **kwargs):
+        result = super().delete(*args, **kwargs)
+        cache.delete(THEME_CACHE_KEY)
+        return result
+
+    @classmethod
+    def active(cls):
+        """The active theme, or None when nothing is configured yet."""
+        return cls.objects.filter(is_active=True).first()
+
+    def light_palette(self):
+        return {role: getattr(self, f'light_{role}') for role, _label, _help in COLOR_ROLES}
+
+    def dark_palette(self):
+        return {role: getattr(self, f'dark_{role}') for role, _label, _help in COLOR_ROLES}
+
+    def css_variables(self):
+        """The :root and .dark custom-property blocks for this theme.
+
+        Safe to mark as ``|safe`` in the template: every colour is validated as
+        a 6-digit hex value and every font comes from the whitelist above, so no
+        attacker-controlled text can reach the style element.
+        """
+        lines = [':root {']
+        for role, _label, _help in COLOR_ROLES:
+            lines.append(f'  --c-{role}: {hex_to_rgb_channels(self.light_palette()[role])};')
+        lines.append(f'  --font-heading: {FONT_STACKS[self.font_heading]};')
+        lines.append(f'  --font-body: {FONT_STACKS[self.font_body]};')
+        lines.append('}')
+        lines.append('')
+        lines.append('.dark {')
+        for role, _label, _help in COLOR_ROLES:
+            lines.append(f'  --c-{role}: {hex_to_rgb_channels(self.dark_palette()[role])};')
+        lines.append('}')
+        return '\n'.join(lines)
+
+    def contrast_warnings(self):
+        """Readability problems in either palette (see portfolio_app.contrast).
+
+        Advisory only — a low-contrast palette is saved but reported in the admin.
+        """
+        from .contrast import palette_contrast_warnings
+
+        return (
+            palette_contrast_warnings(self.light_palette(), mode='light')
+            + palette_contrast_warnings(self.dark_palette(), mode='dark')
+        )
