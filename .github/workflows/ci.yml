@@ -10,12 +10,19 @@ jobs:
     name: Tests and deployment checks
     runs-on: ubuntu-latest
     env:
-      # Long enough to satisfy Django's security.W009 check. CI only.
-      SECRET_KEY: ci-only-9f2b7c1e4a6d8f0b3c5e7a9d1f2b4c6e8a0d3f5b7c9e1a2d4f6b8c0e
+      # Needed by both steps below. SECRET_KEY is generated per run in a step
+      # further down — no secret material is stored in this file.
+      # The console backend keeps the "email not configured" warning out of CI.
+      EMAIL_BACKEND: console
+      ALLOWED_HOSTS: armin2080.de,www.armin2080.de
+      # Obvious dummies: settings.py only requires these to be non-empty and to
+      # not be the placeholders from .env.example.
+      RECAPTCHA_PUBLIC_KEY: ci-placeholder-not-a-real-key
+      RECAPTCHA_PRIVATE_KEY: ci-placeholder-not-a-real-key
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
@@ -25,24 +32,39 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Generate a throwaway SECRET_KEY
+        run: |
+          echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> "$GITHUB_ENV"
+
+      # Run against production-like settings (captcha enforced, DEBUG off) so CI
+      # exercises the same code paths as the Pi. SECURE_SSL_REDIRECT is disabled
+      # here only because the Django test client speaks plain HTTP.
       - name: Run tests
+        env:
+          DEBUG: 'False'
+          SECURE_SSL_REDIRECT: 'False'
         run: python manage.py test
 
+      # Deliberately does not set SECURE_SSL_REDIRECT: the check must see the
+      # real production value (True) or it reports security.W008.
       - name: Run deployment checks
         env:
-          # Console backend keeps the "email not configured" warning out of CI.
           DEBUG: 'False'
-          EMAIL_BACKEND: console
-          ALLOWED_HOSTS: armin2080.de,www.armin2080.de
-          RECAPTCHA_PUBLIC_KEY: ci-dummy-recaptcha-site-key
-          RECAPTCHA_PRIVATE_KEY: ci-dummy-recaptcha-secret-key
         run: python manage.py check --deploy --fail-level WARNING
 
   css:
     name: CSS bundle is up to date
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+
+      # Caching the CLI avoids re-downloading it (and hitting the release CDN)
+      # on every run. Bump the key when TAILWIND_VERSION changes.
+      - name: Cache the Tailwind CLI
+        uses: actions/cache@v6
+        with:
+          path: .tailwind
+          key: tailwind-cli-${{ runner.os }}-${{ runner.arch }}-3.4.17
 
       - name: Rebuild Tailwind and compare
         run: |
