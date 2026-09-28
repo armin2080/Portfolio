@@ -129,6 +129,48 @@ body {
     transform: scale(1.1);
 }
 
+/* --------------------------------------------------------------------------
+   Mobile refinements.
+
+   The desktop layout is unchanged; the template classes restore it at md+.
+   -------------------------------------------------------------------------- */
+
+/* Soft themed halo behind the avatar. Gives the stacked mobile hero a visual
+   anchor. Hidden at md+ (see hero markup), so desktop is untouched. */
+.hero-glow {
+    position: absolute;
+    inset: -22%;
+    border-radius: 9999px;
+    background: radial-gradient(
+        circle at 50% 42%,
+        rgb(var(--c-secondary) / 0.38),
+        rgb(var(--c-accent) / 0.28) 55%,
+        transparent 74%
+    );
+    filter: blur(16px);
+    pointer-events: none;
+}
+
+/* Short accent rule under section headings on mobile. Display is controlled by
+   the template (`block md:hidden`) so this must not set `display` — custom CSS
+   is emitted after Tailwind's utilities and would otherwise beat `md:hidden`. */
+.heading-rule {
+    width: 2.5rem;
+    height: 0.25rem;
+    margin-top: 0.6rem;
+    border-radius: 9999px;
+    background: rgb(var(--c-secondary));
+}
+
+/* The project overlay reveals the description and a link on hover. Touch devices
+   have no hover, and the same description already appears under the title, so
+   drop the overlay there instead of leaving an unreachable layer over the image. */
+@media (hover: none) {
+    .project-card .project-overlay {
+        display: none;
+    }
+}
+
 /* Dark mode.
    The whole override layer that used to live here (.dark .bg-white,
    .dark .text-gray-700, .dark .bg-teal, ...) is gone: every colour now comes

@@ -15,6 +15,13 @@ BOUNDARY_MIN = 3.0
 # are separated from the page by a drop shadow, not by a colour step, so a
 # contrast rule between them would flag a perfectly good design (the shipped
 # palettes sit at ~1.07:1 for that pair by intent).
+#
+# `heading` is checked as text because it is used both for headings and for
+# brand-coloured captions (e.g. the years line on a skill card). `accent` is
+# deliberately NOT checked as text: it is a pale "on-dark" colour, and using it
+# for text on a light card is the mistake that made a caption invisible at
+# 1.03:1. Anything readable on a light surface should use `heading`, `ink` or
+# `muted` instead.
 CONTRAST_CHECKS = (
     ('Top bar links', 'inverse', 'primary', TEXT_MIN,
      'the navigation links will be hard to read on the bar'),
@@ -26,6 +33,10 @@ CONTRAST_CHECKS = (
      'body copy will be hard to read'),
     ('Text on cards', 'ink', 'surface', TEXT_MIN,
      'text inside cards and panels will be hard to read'),
+    ('Headings', 'heading', 'page', TEXT_MIN,
+     'headings and brand-coloured text will be hard to read'),
+    ('Headings on cards', 'heading', 'surface', TEXT_MIN,
+     'headings and brand-coloured text on cards will be hard to read'),
     ('Muted text', 'muted', 'page', TEXT_MIN,
      'captions and metadata will be hard to read'),
     ('Button labels', 'inverse', 'emphasis', TEXT_MIN,
