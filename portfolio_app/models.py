@@ -83,9 +83,18 @@ class Category(models.Model):
 
 class Project(models.Model):
     name = models.CharField(max_length=200)
-    description = models.TextField(help_text="Project description")
+    description = models.TextField(
+        blank=True,
+        help_text=(
+            "Shown on the project card. Filled in from GitHub on first import; "
+            "if the repository has no description this is left blank."
+        ),
+    )
     link = models.URLField()
-    image = models.ImageField(upload_to='projects/', blank=True, null=True)
+    image = models.ImageField(
+        upload_to='projects/', blank=True, null=True,
+        help_text="Optional. Cards show a placeholder until a screenshot is uploaded.",
+    )
     skills_used = models.ManyToManyField(Skill, related_name='projects', blank=True)
     category = models.ForeignKey(
         Category,
@@ -95,6 +104,33 @@ class Project(models.Model):
         related_name='projects',
     )
     date = models.DateField(default=timezone.now)
+
+    # --- GitHub sync -------------------------------------------------------
+    # Set only on projects imported from GitHub. `github_repo_id` is GitHub's
+    # numeric id, which stays the same when a repository is renamed, so it is a
+    # safer match key than the name.
+    github_repo_id = models.BigIntegerField(
+        null=True, blank=True, unique=True,
+        help_text="GitHub's numeric repository id; how the sync recognises this project.",
+    )
+    github_full_name = models.CharField(
+        max_length=200, blank=True,
+        help_text="owner/repo on GitHub, for reference.",
+    )
+    github_synced_at = models.DateTimeField(
+        null=True, blank=True, help_text="When this project was last seen by the sync.",
+    )
+
+    is_published = models.BooleanField(
+        default=True,
+        help_text=(
+            "Untick to hide this project from the site. The GitHub sync never "
+            "changes this, so hidden projects stay hidden. "
+            "Note: deleting a GitHub project does not remove it permanently — "
+            "the next sync will import it again. Untick this instead."
+        ),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

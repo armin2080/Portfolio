@@ -160,7 +160,9 @@
                     {% endif %}
                     <div class="absolute inset-0 bg-primary bg-opacity-80 flex items-center justify-center project-overlay">
                         <div class="text-center p-4">
+                            {% if project.description %}
                             <p class="text-inverse mb-4">{{ project.description|truncatechars:80 }}</p>
+                            {% endif %}
                             <a href="{{ project.link }}" target="_blank"
                                 class="inline-block bg-emphasis text-inverse px-4 py-2 rounded-md font-medium hover:bg-opacity-90 transition-colors">
                                 View Details
@@ -175,7 +177,9 @@
                             <span class="border border-border bg-page text-secondary px-2 py-1 rounded font-mono text-[10px] uppercase tracking-wider">{{ project.category.name }}</span>
                         {% endif %}
                     </div>
+                    {% if project.description %}
                     <p class="text-ink mb-4">{{ project.description|truncatechars:80 }}</p>
+                    {% endif %}
                     <div class="flex flex-wrap gap-2 mb-4">
                         {% for skill in project.skills_used.all %}
                         <span class="border border-border bg-page text-secondary px-2 py-1 rounded font-mono text-[11px] tracking-wide">{{ skill.name }}</span>

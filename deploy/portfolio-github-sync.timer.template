@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily GitHub project sync for the portfolio
+
+[Timer]
+# Daily at 07:30 local time. Deliberately outside the 03:00-06:00 window in which
+# portfolio-night-stop keeps the site down, so a failing sync is easy to spot.
+OnCalendar=*-*-* 07:30:00
+Persistent=true
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target

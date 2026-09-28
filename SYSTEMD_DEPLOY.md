@@ -23,6 +23,8 @@ The script:
 - installs and starts `portfolio.service`;
 - installs `portfolio-purge.timer`, which deletes statistics older than
   `ANALYTICS_RETENTION_DAYS` once a day;
+- installs `portfolio-github-sync.timer`, which imports new public GitHub
+  repositories as projects once a day;
 - enables Portfolio to start after every reboot.
 
 The statistics cleanup can also be run by hand:
@@ -34,12 +36,43 @@ The statistics cleanup can also be run by hand:
 systemctl list-timers portfolio-purge.timer
 ```
 
+The GitHub sync can also be run by hand:
+
+```bash
+# Show what would be imported without writing anything
+.venv/bin/python manage.py sync_github_projects --dry-run
+.venv/bin/python manage.py sync_github_projects
+# Follow the daily run
+journalctl -u portfolio-github-sync -n 50 --no-pager
+```
+
 After installation, review `.env`, especially `ALLOWED_HOSTS` and email
 credentials, then restart the app:
 
 ```bash
 sudo systemctl restart portfolio
 ```
+
+## GitHub project sync
+
+A daily timer (`portfolio-github-sync.timer`, 07:30 local time) imports your
+public GitHub repositories as projects, so a new repository appears on the site
+without any manual step. It runs after the nightly downtime window
+(03:00–06:00) so failures are easy to spot in the journal.
+
+- Set `GITHUB_USERNAME` in `.env` (defaults to `armin2080`). `GITHUB_TOKEN` is
+  optional — without it the GitHub API allows 60 requests per hour, far more
+  than one sync a day needs.
+- **Nothing is ever deleted.** A repository that disappears from GitHub simply
+  stops being updated; the project stays until you remove it yourself.
+- **Your edits always win.** Name, description, link and date are written only
+  on first import. Photos, categories, skills and the published flag are never
+  touched, so uploading a screenshot later is safe.
+- Imported projects arrive published. Untick **is published** on any that are
+  not portfolio material — the sync will not re-publish them. (Deleting such a
+  project does not help: the next run would import it again.)
+- The first run imports every public repository at once. Preview it with
+  `sync_github_projects --dry-run` before letting the timer do it.
 
 ## Backups
 
@@ -73,6 +106,9 @@ sudo systemctl restart portfolio
 
 # Verify the service is enabled at boot
 systemctl is-enabled portfolio
+
+# Upcoming scheduled jobs (statistics cleanup, GitHub sync)
+systemctl list-timers 'portfolio-*'
 ```
 
 For an application update:

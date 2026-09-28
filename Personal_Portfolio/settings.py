@@ -220,6 +220,19 @@ if not ANALYTICS_SALT:
 # (installed as a daily systemd timer — see SYSTEMD_DEPLOY.md).
 ANALYTICS_RETENTION_DAYS = int(os.environ.get('ANALYTICS_RETENTION_DAYS', '180'))
 
+
+# GitHub project sync (see portfolio_app/github_sync.py)
+# Public repositories are imported as projects by `manage.py sync_github_projects`,
+# which a systemd timer runs daily. Nothing is ever deleted, and edits made in the
+# admin to a project's name, description, link, photo, category or skills are not
+# overwritten.
+GITHUB_USERNAME = os.environ.get('GITHUB_USERNAME', '')
+
+# Optional. Without a token the API allows 60 requests per hour, which is ample
+# for one sync a day; a token is only needed to raise that limit or to reach
+# private repositories.
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+
 # reCAPTCHA (Google reCAPTCHA v3 – invisible)
 # Empty values and the .env.example placeholders must count as "not configured".
 # Defining an empty key would otherwise make every submission fail validation.
