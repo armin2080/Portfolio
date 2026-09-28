@@ -11,6 +11,7 @@ from .contrast import (
     BOUNDARY_MIN,
     CONTRAST_CHECKS,
     HAIRLINE_MIN,
+    SEPARATION_MIN,
     TEXT_MIN,
     checks_as_dicts,
     contrast_ratio,
@@ -91,6 +92,20 @@ class PaletteWarningTests(TestCase):
 
     def test_a_palette_with_no_problems_returns_nothing(self):
         self.assertEqual(palette_contrast_warnings(self._clean_palette()), [])
+
+    def test_detects_a_flat_top_bar(self):
+        # The bar is the chrome of the interface. A bar the same tone as the page
+        # reads as flat, which is what this check exists to catch.
+        palette = dict(self._clean_palette(), primary='#FFFFFF', page='#FFFFFF')
+        labels = {w['label'] for w in palette_contrast_warnings(palette)}
+        self.assertIn('Top bar separation', labels)
+
+    def test_tolerates_a_subtle_but_visible_bar(self):
+        # A graphite bar next to a near-black page is ~1.6:1: deliberately gentle,
+        # and above the perception floor.
+        palette = dict(self._clean_palette(), primary='#2B3641', page='#080B0E')
+        labels = {w['label'] for w in palette_contrast_warnings(palette)}
+        self.assertNotIn('Top bar separation', labels)
 
     def test_detects_invisible_hairlines(self):
         # The top bar and every card are delineated by a border, so a border that
@@ -228,14 +243,14 @@ class ShippedDefaultsTests(TestCase):
         self.assertGreater(ratio, 3.0)
         self.assertLess(ratio, TEXT_MIN)
 
-    def test_dark_palette_bar_is_delineated_by_a_border_not_by_tone(self):
-        # A graphite bar next to a near-black page has almost no tonal step. That
-        # is intentional: the separation comes from `border-b`, so the hairline is
-        # the thing that must stay perceptible.
-        self.assertLess(
-            contrast_ratio(DEFAULT_DARK_PALETTE['primary'], DEFAULT_DARK_PALETTE['page']),
-            BOUNDARY_MIN,
+    def test_dark_palette_bar_is_separated_from_the_page(self):
+        # The bar must read as a distinct surface. It needs both a tonal step and
+        # a perceptible hairline: a near-black page makes the bar easy to lose.
+        band = contrast_ratio(
+            DEFAULT_DARK_PALETTE['primary'], DEFAULT_DARK_PALETTE['page']
         )
+        self.assertGreaterEqual(band, SEPARATION_MIN)
+        self.assertLess(band, BOUNDARY_MIN)  # gentle, not a bright strip
         self.assertGreaterEqual(
             contrast_ratio(DEFAULT_DARK_PALETTE['border'], DEFAULT_DARK_PALETTE['page']),
             HAIRLINE_MIN,

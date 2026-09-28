@@ -278,7 +278,10 @@ DEFAULT_LIGHT_PALETTE = {
 }
 
 DEFAULT_DARK_PALETTE = {
-    'primary': '#0F3460',
+    # `primary` is the chrome colour: the top bar, footer and section bands. It is
+    # deliberately lighter than `page` so those surfaces read as distinct bands
+    # rather than blending into the near-black background.
+    'primary': '#2B3641',
     'secondary': '#457B9D',
     'accent': '#A8DADC',
     'emphasis': '#E63946',

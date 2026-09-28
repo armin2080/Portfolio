@@ -11,18 +11,23 @@ TEXT_MIN = 4.5
 BOUNDARY_MIN = 3.0
 HAIRLINE_MIN = 1.15
 
+# Not a WCAG number: a perception floor for "this surface reads as a distinct
+# band against the page". 1.0 is invisible, ~1.2 is just perceptible and ~1.6
+# reads clearly. Set at 1.25 to catch a bar that has gone flat without being
+# prescriptive about how much contrast a design should have.
+SEPARATION_MIN = 1.25
+
 # label, foreground role, background role, minimum, what goes wrong
 #
-# Two deliberate omissions, because in this design those boundaries are drawn by
-# a border rather than by a step in tone:
+# Two things worth knowing about this set:
 #
-#  * no `surface` vs `page` check — cards carry a hairline border and a minimal
-#    shadow, and are meant to sit close to the page (the shipped palettes are
-#    ~1.08:1 there by intent);
-#  * no `primary` vs `page` check — the top bar is the same graphite as other
-#    surfaces and is delineated by `border-b`, which the 'Hairlines' check below
-#    covers. A dark graphite bar cannot separate from a near-black page by tone
-#    without becoming a bright strip, which the design deliberately avoids.
+#  * There is no `surface` vs `page` check. Cards sit close to the page by design
+#    (the shipped palettes are ~1.08:1 there) and are delineated by a hairline
+#    border, which the 'Hairlines' check covers.
+#  * `primary` vs `page` IS checked ('Top bar separation'). The top bar, footer
+#    and section bands are the chrome of the interface and need to read as
+#    distinct surfaces; a near-black page with a same-tone bar looked flat.
+#    This is a perception floor, not a WCAG requirement.
 #
 # `heading` is checked as text because it is used for headings *and* for
 # brand-coloured captions. `accent` is deliberately NOT checked as text: it is an
@@ -33,6 +38,8 @@ CONTRAST_CHECKS = (
      'the navigation links will be hard to read on the bar'),
     ('Top bar hover', 'accent', 'primary', TEXT_MIN,
      'the hover colour on the navigation links will be hard to read'),
+    ('Top bar separation', 'primary', 'page', SEPARATION_MIN,
+     'the top bar will barely differ from the page background'),
     ('Body text', 'ink', 'page', TEXT_MIN,
      'body copy will be hard to read'),
     ('Text on cards', 'ink', 'surface', TEXT_MIN,
