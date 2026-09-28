@@ -1,6 +1,7 @@
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import mark_safe
 import json
@@ -69,16 +70,107 @@ class CategoryAdmin(admin.ModelAdmin):
     prepopulated_fields = {'slug': ('name',)}
 
 
+class ProjectSourceFilter(admin.SimpleListFilter):
+    title = 'source'
+    parameter_name = 'source'
+
+    def lookups(self, request, model_admin):
+        return (('github', 'Imported from GitHub'), ('manual', 'Added manually'))
+
+    def queryset(self, request, queryset):
+        if self.value() == 'github':
+            return queryset.exclude(github_repo_id=None)
+        if self.value() == 'manual':
+            return queryset.filter(github_repo_id=None)
+
+
+class ProjectImageFilter(admin.SimpleListFilter):
+    """Find imported projects that still need a screenshot."""
+
+    title = 'image'
+    parameter_name = 'has_image'
+
+    def lookups(self, request, model_admin):
+        return (('yes', 'Has an image'), ('no', 'Still needs an image'))
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.exclude(Q(image='') | Q(image__isnull=True))
+        if self.value() == 'no':
+            return queryset.filter(Q(image='') | Q(image__isnull=True))
+
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'date', 'has_image')
-    list_filter = ('category',)
-    search_fields = ('name',)
+    list_display = (
+        'name', 'category', 'date', 'is_published', 'has_image', 'has_description', 'source',
+    )
+    list_editable = ('is_published',)
+    list_filter = ('is_published', ProjectSourceFilter, ProjectImageFilter, 'category')
+    search_fields = ('name', 'description', 'github_full_name')
+    readonly_fields = ('github_full_name', 'github_repo_id', 'github_synced_at')
+    actions = ('refresh_from_github',)
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'link', 'date', 'is_published'),
+        }),
+        ('Presentation', {
+            'fields': ('image', 'category', 'skills_used'),
+            'description': (
+                'Cards show a placeholder graphic until an image is uploaded. '
+                'Set these yourself — the GitHub sync never changes them.'
+            ),
+        }),
+        ('GitHub', {
+            'fields': ('github_full_name', 'github_repo_id', 'github_synced_at'),
+            'classes': ('collapse',),
+            'description': (
+                'Imported from GitHub. The daily sync only refreshes the '
+                'bookkeeping fields here; use the "Refresh from GitHub" action to '
+                'pull the name, description and link again.'
+            ),
+        }),
+    )
 
+    @admin.display(description='Source')
+    def source(self, obj):
+        return 'GitHub' if obj.github_repo_id else 'Manual'
+
+    @admin.display(description='Image', boolean=True)
     def has_image(self, obj):
         return bool(obj.image)
-    has_image.boolean = True
-    has_image.short_description = 'Image'
+
+    @admin.display(description='Description', boolean=True)
+    def has_description(self, obj):
+        return bool(obj.description)
+
+    @admin.action(description='Refresh name, description and link from GitHub')
+    def refresh_from_github(self, request, queryset):
+        from .github_sync import refresh_project_from_github
+
+        refreshed, failed = 0, []
+        for project in queryset:
+            if not project.github_repo_id:
+                failed.append(f'{project.name} (not linked to GitHub)')
+                continue
+            try:
+                refresh_project_from_github(project)
+                refreshed += 1
+            except Exception as exc:
+                failed.append(f'{project.name} ({exc})')
+
+        if refreshed:
+            self.message_user(
+                request,
+                f'Refreshed {refreshed} project(s) from GitHub. '
+                'Photos, categories and skills were left untouched.',
+            )
+        if failed:
+            self.message_user(
+                request,
+                'Could not refresh: ' + '; '.join(failed),
+                level=messages.WARNING,
+            )
 
 
 @admin.register(Education)

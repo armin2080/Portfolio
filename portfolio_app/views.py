@@ -31,7 +31,8 @@ def index(req):
     skills = Skill.objects.all()[:3]
     # select_related/prefetch_related avoid extra queries in the card markup.
     projects = (
-        Project.objects.select_related('category')
+        Project.objects.filter(is_published=True)
+        .select_related('category')
         .prefetch_related('skills_used')[:3]
     )
     profile = Profile.objects.first()
@@ -178,7 +179,11 @@ def skills_view(req):
 
 def projects_view(req):
     category_slug = req.GET.get('category', '')
-    projects = Project.objects.select_related('category').prefetch_related('skills_used')
+    projects = (
+        Project.objects.filter(is_published=True)
+        .select_related('category')
+        .prefetch_related('skills_used')
+    )
     categories = Category.objects.all()
 
     if category_slug:

@@ -1,0 +1,22 @@
+[Unit]
+Description=Import new portfolio projects from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__APP_USER__
+Group=__APP_GROUP__
+WorkingDirectory=__PROJECT_DIR__
+EnvironmentFile=__PROJECT_DIR__/.env
+ExecStart=__PROJECT_DIR__/.venv/bin/python manage.py sync_github_projects
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# __PROJECT_DIR__ must stay writable: the SQLite database lives in the project
+# directory (there is no DB_NAME override), so the sync needs to write to it and
+# to its -wal/-journal sidecars. Without this the run fails on a read-only
+# filesystem and no project is ever imported. ReadWritePaths= re-opens the path
+# even though ProtectHome=read-only.
+ReadWritePaths=/var/lib/portfolio __PROJECT_DIR__
