@@ -33,8 +33,18 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         username = options['username'] or getattr(settings, 'GITHUB_USERNAME', '')
         if not username:
+            env_file = settings.BASE_DIR / '.env'
             raise CommandError(
-                'No GitHub username configured. Set GITHUB_USERNAME in .env or pass --username.'
+                'No GitHub username configured, so there is nothing to sync.\n'
+                f'Set GITHUB_USERNAME in {env_file} or pass --username.\n'
+                f'That file is {"present" if env_file.exists() else "MISSING"}'
+                + (
+                    ' and has no GITHUB_USERNAME line set to a value — note that a'
+                    ' line like "GITHUB_USERNAME=" is empty, and an exported shell'
+                    ' variable takes precedence over the file.'
+                    if env_file.exists()
+                    else ' — create it, or pass --username.'
+                )
             )
 
         dry_run = options['dry_run']
