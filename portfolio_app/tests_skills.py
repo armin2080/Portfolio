@@ -13,8 +13,8 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
-from .github_sync import apply_skill_dates, sync_projects
-from .models import Project, Skill, SkillSignal
+from .github_sync import propose_skill_dates, sync_projects
+from .models import Project, Skill, SkillSignal, SkillSuggestion
 from .skill_detection import (
     RepoEvidence,
     dependency_matches,
@@ -345,9 +345,9 @@ class FetchEvidenceTests(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Tagging during a sync
+# Suggesting skills during a sync
 # ---------------------------------------------------------------------------
-class SkillTaggingSyncTests(TestCase):
+class SkillSuggestionSyncTests(TestCase):
     def setUp(self):
         # The seeded rules are data from a migration; tests define their own so
         # the expectation is visible right here.
@@ -366,15 +366,27 @@ class SkillTaggingSyncTests(TestCase):
         with patch('portfolio_app.github_sync.urllib.request.urlopen', side_effect=router):
             return sync_projects(username='armin2080', **kwargs)
 
-    def test_detected_skills_are_linked_to_a_new_project(self):
+    def test_a_detected_skill_becomes_a_suggestion_not_a_tag(self):
         Skill.objects.create(name='Django', start_date=date(2021, 1, 1))
         signal('path', 'manage.py', 'Django')
 
         report = self._run(tree_paths=['manage.py'])
 
         project = Project.objects.get()
-        self.assertEqual([s.name for s in project.skills_used.all()], ['Django'])
-        self.assertTrue(report.tag_changes)
+        # The whole point: nothing is tagged without confirmation.
+        self.assertEqual(project.skills_used.count(), 0)
+        self.assertEqual(
+            [s.skill.name for s in project.skill_suggestions.all()], ['Django']
+        )
+        self.assertTrue(report.suggestions)
+
+    def test_the_suggestion_records_its_evidence(self):
+        Skill.objects.create(name='Django', start_date=date(2021, 1, 1))
+        signal('path', 'manage.py', 'Django')
+
+        self._run(tree_paths=['manage.py'])
+
+        self.assertEqual(Project.objects.get().skill_suggestions.get().evidence, 'manage.py')
 
     def test_an_unknown_skill_is_created_hidden(self):
         signal('dependency', 'fastapi', 'FastAPI')
@@ -394,34 +406,67 @@ class SkillTaggingSyncTests(TestCase):
         self._run(tree_paths=['manage.py'])
 
         self.assertEqual(Skill.objects.filter(name='Django').count(), 1)
-        self.assertEqual(Project.objects.get().skills_used.get(), existing)
+        self.assertEqual(Project.objects.get().skill_suggestions.get().skill, existing)
 
-    def test_a_tag_that_no_longer_matches_is_removed(self):
-        # The chosen policy: tags track the repository, so a stale tag goes.
-        project = Project.objects.create(name='Old', link='https://example.invalid', github_repo_id=1001)
-        stale = Skill.objects.create(name='Django', start_date=date(2021, 1, 1))
-        project.skills_used.set([stale])
+    def test_a_skill_the_project_already_has_is_not_suggested(self):
+        project = Project.objects.create(
+            name='P', link='https://example.invalid', github_repo_id=1001,
+        )
+        tagged = Skill.objects.create(name='Django', start_date=date(2021, 1, 1))
+        project.skills_used.set([tagged])
+        signal('path', 'manage.py', 'Django')
 
-        self._run(tree_paths=['README.md'])
+        self._run(tree_paths=['manage.py'])
 
-        self.assertEqual(Project.objects.get().skills_used.count(), 0)
+        self.assertEqual(project.skill_suggestions.count(), 0)
 
-    def test_auto_skills_off_leaves_the_tags_alone(self):
+    def test_a_suggestion_that_no_longer_matches_is_withdrawn(self):
+        # Re-running after a refactor should not leave a stale suggestion behind.
+        signal('path', 'manage.py', 'Django')
+        self._run(tree_paths=['manage.py'])
+        self.assertEqual(Project.objects.get().skill_suggestions.count(), 1)
+
+        self._run(tree_paths=['README.md'], force_skills=True)
+
+        self.assertEqual(Project.objects.get().skill_suggestions.count(), 0)
+
+    def test_running_twice_does_not_duplicate_a_suggestion(self):
+        signal('path', 'manage.py', 'Django')
+        self._run(tree_paths=['manage.py'])
+        self._run(tree_paths=['manage.py'], force_skills=True)
+
+        self.assertEqual(Project.objects.get().skill_suggestions.count(), 1)
+
+    def test_existing_tags_are_never_touched(self):
+        # A curated tag no rule can prove must survive a sync untouched.
         project = Project.objects.create(
             name='Curated', link='https://example.invalid', github_repo_id=1001,
-            auto_skills=False,
         )
         kept = Skill.objects.create(name='IT Service Management', start_date=date(2021, 1, 1))
         project.skills_used.set([kept])
         signal('path', 'manage.py', 'Django')
 
+        self._run(tree_paths=['manage.py'])
+
+        self.assertEqual(
+            [s.name for s in Project.objects.get().skills_used.all()],
+            ['IT Service Management'],
+        )
+
+    def test_suggest_skills_off_reads_nothing(self):
+        project = Project.objects.create(
+            name='Curated', link='https://example.invalid', github_repo_id=1001,
+            suggest_skills=False,
+        )
+        signal('path', 'manage.py', 'Django')
+
         calls = []
         self._run(tree_paths=['manage.py'], calls=calls)
 
-        self.assertEqual([s.name for s in Project.objects.get().skills_used.all()],
-                         ['IT Service Management'])
-        # Contents were not even read.
-        self.assertFalse([url for url in calls if '/contents/' in url or '/git/trees/' in url])
+        self.assertEqual(project.skill_suggestions.count(), 0)
+        self.assertFalse(
+            [url for url in calls if '/contents/' in url or '/git/trees/' in url]
+        )
 
     def test_an_unchanged_repository_is_not_read_again(self):
         signal('path', 'manage.py', 'Django')
@@ -444,8 +489,10 @@ class SkillTaggingSyncTests(TestCase):
 
         self.assertTrue([url for url in calls if '/git/trees/' in url])
 
-    def test_a_failed_read_leaves_existing_tags_untouched(self):
-        project = Project.objects.create(name='P', link='https://example.invalid', github_repo_id=1001)
+    def test_a_failed_read_leaves_suggestions_and_tags_untouched(self):
+        project = Project.objects.create(
+            name='P', link='https://example.invalid', github_repo_id=1001,
+        )
         kept = Skill.objects.create(name='Python', start_date=date(2020, 1, 1))
         project.skills_used.set([kept])
         signal('path', 'manage.py', 'Django')
@@ -453,22 +500,22 @@ class SkillTaggingSyncTests(TestCase):
         report = self._run(fail_tree=True)
 
         self.assertEqual([s.name for s in Project.objects.get().skills_used.all()], ['Python'])
-        # A tagging hiccup is a warning, not an error: the import succeeded and
+        self.assertEqual(project.skill_suggestions.count(), 0)
+        # A detection hiccup is a warning, not an error: the import succeeded and
         # the timer unit should not be marked as failed for it.
         self.assertTrue(report.warnings)
         self.assertFalse(report.errors)
         self.assertTrue(report.ok)
 
-    def test_an_empty_repository_clears_the_tags(self):
-        # Distinct from the failure above: reading successfully and finding
-        # nothing really does mean the tags no longer apply.
-        project = Project.objects.create(name='P', link='https://example.invalid', github_repo_id=1001)
-        stale = Skill.objects.create(name='Django', start_date=date(2020, 1, 1))
-        project.skills_used.set([stale])
+    def test_an_empty_repository_withdraws_suggestions(self):
+        # Distinct from a failure: reading successfully and finding nothing does
+        # mean the repository supports no suggestions.
+        signal('path', 'manage.py', 'Django')
+        self._run(tree_paths=['manage.py'])
 
-        report = self._run(tree_paths=[])
+        report = self._run(tree_paths=[], force_skills=True)
 
-        self.assertEqual(Project.objects.get().skills_used.count(), 0)
+        self.assertEqual(Project.objects.get().skill_suggestions.count(), 0)
         self.assertFalse(report.errors)
 
     def test_a_dry_run_writes_nothing(self):
@@ -487,12 +534,13 @@ class SkillTaggingSyncTests(TestCase):
         # Nothing was written...
         self.assertFalse(Skill.objects.filter(name='FastAPI').exists())
         self.assertEqual(project.skills_used.count(), 0)
+        self.assertEqual(project.skill_suggestions.count(), 0)
         self.assertFalse(project.github_pushed_at)
-        # ...but the changes were reported.
-        self.assertTrue(report.tag_changes)
+        # ...but the suggestions were reported.
+        self.assertTrue(report.suggestions)
         self.assertTrue(report.skills_created)
 
-    def test_manual_projects_are_never_tagged(self):
+    def test_manual_projects_are_never_suggested_for(self):
         Project.objects.create(name='Manual', link='https://example.invalid')
         signal('path', 'manage.py', 'Django')
 
@@ -500,59 +548,75 @@ class SkillTaggingSyncTests(TestCase):
 
         manual = Project.objects.get(name='Manual')
         self.assertEqual(manual.skills_used.count(), 0)
+        self.assertEqual(manual.skill_suggestions.count(), 0)
 
-    def test_without_any_signals_nothing_is_tagged(self):
+    def test_without_any_signals_nothing_is_suggested(self):
         report = self._run(tree_paths=['manage.py'])
 
         self.assertEqual(Project.objects.get().skills_used.count(), 0)
-        self.assertFalse(report.tag_changes)
+        self.assertEqual(Project.objects.get().skill_suggestions.count(), 0)
+        self.assertFalse(report.suggestions)
 
 
 class _Report:
     """Minimal stand-in for SyncReport, to keep these tests focused."""
 
     def __init__(self):
-        self.dates_moved = []
+        self.dates_proposed = []
 
 
 # ---------------------------------------------------------------------------
 # Experience dates
 # ---------------------------------------------------------------------------
 class SkillDateTests(TestCase):
-    def test_a_date_is_moved_earlier_when_evidence_proves_it(self):
+    def test_an_earlier_date_is_proposed_not_applied(self):
         Skill.objects.create(name='Python', start_date=date(2022, 1, 1))
         report = _Report()
 
-        apply_skill_dates({'python': date(2019, 5, 1)}, report=report)
+        propose_skill_dates({'python': date(2019, 5, 1)}, report=report)
 
-        self.assertEqual(Skill.objects.get(name='Python').start_date, date(2019, 5, 1))
-        self.assertTrue(report.dates_moved)
+        skill = Skill.objects.get(name='Python')
+        # The real date is untouched; the suggestion waits for confirmation.
+        self.assertEqual(skill.start_date, date(2022, 1, 1))
+        self.assertEqual(skill.suggested_start_date, date(2019, 5, 1))
+        self.assertTrue(report.dates_proposed)
 
-    def test_a_date_is_never_moved_later(self):
-        # Moving it later would silently shorten a claim the owner made by hand.
+    def test_a_later_date_is_not_proposed(self):
+        # Proposing a later date would silently shorten a claim made by hand.
         Skill.objects.create(name='Python', start_date=date(2019, 5, 1))
         report = _Report()
 
-        apply_skill_dates({'python': date(2024, 1, 1)}, report=report)
+        propose_skill_dates({'python': date(2024, 1, 1)}, report=report)
 
-        self.assertEqual(Skill.objects.get(name='Python').start_date, date(2019, 5, 1))
-        self.assertFalse(report.dates_moved)
+        self.assertIsNone(Skill.objects.get(name='Python').suggested_start_date)
+        self.assertFalse(report.dates_proposed)
+
+    def test_an_already_proposed_date_is_not_re_proposed(self):
+        skill = Skill.objects.create(name='Python', start_date=date(2022, 1, 1))
+        skill.suggested_start_date = date(2019, 5, 1)
+        skill.save()
+        report = _Report()
+
+        propose_skill_dates({'python': date(2020, 1, 1)}, report=report)
+
+        self.assertEqual(Skill.objects.get(name='Python').suggested_start_date, date(2019, 5, 1))
+        self.assertFalse(report.dates_proposed)
 
     def test_an_unknown_skill_is_ignored(self):
         report = _Report()
 
-        apply_skill_dates({'nonexistent': date(2020, 1, 1)}, report=report)
+        propose_skill_dates({'nonexistent': date(2020, 1, 1)}, report=report)
 
-        self.assertFalse(report.dates_moved)
+        self.assertFalse(report.dates_proposed)
 
     def test_dry_run_does_not_write(self):
         Skill.objects.create(name='Python', start_date=date(2022, 1, 1))
         report = _Report()
 
-        apply_skill_dates({'python': date(2019, 5, 1)}, report=report, dry_run=True)
+        propose_skill_dates({'python': date(2019, 5, 1)}, report=report, dry_run=True)
 
-        self.assertEqual(Skill.objects.get(name='Python').start_date, date(2022, 1, 1))
-        self.assertTrue(report.dates_moved)
+        self.assertIsNone(Skill.objects.get(name='Python').suggested_start_date)
+        self.assertTrue(report.dates_proposed)
 
 
 # ---------------------------------------------------------------------------

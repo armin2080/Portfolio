@@ -9,12 +9,11 @@ Design notes
   descriptions, links and dates are written only when a project is first
   imported. Photos and categories are never touched, and `is_published` is
   never changed by the sync.
-* **Skill tags are kept in step with the repository** — but only while a
-  project's `auto_skills` box is ticked, and only from rules the site owner
-  wrote (`SkillSignal`). Detection reads the file list and dependency files, so
-  a tag can always be traced to something actually in the repository. Newly
-  detected skills are created *hidden* for review. Untick `auto_skills` on a
-  project whose tags you want to manage by hand.
+* **Skill tags are only ever suggested.** The sync reads what a repository
+  contains and records `SkillSuggestion` rows, using rules the site owner wrote
+  (`SkillSignal`). Nothing is tagged until a suggestion is accepted in the admin,
+  so a rebuild can never drop a tag no rule can prove. Untick
+  `suggest_skills` on a project to stop suggestions for it entirely.
 * **Reading contents costs API requests.** A repository whose `pushed_at` has
   not changed is skipped — unless `force_skills` is set, which re-reads
   everything (needed after editing the rules). Failed reads leave the existing
@@ -37,8 +36,8 @@ from datetime import datetime
 from django.conf import settings
 from django.utils import timezone
 
-from .models import Project, Skill, SkillSignal
-from .skill_detection import detect_skill_names, fetch_evidence
+from .models import Project, Skill, SkillSignal, SkillSuggestion
+from .skill_detection import detect_skill_matches, fetch_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +58,11 @@ class SyncReport:
     unchanged: list = field(default_factory=list)
     errors: list = field(default_factory=list)
     fetched: int = 0
-    # Skill detection.
+    # Skill suggestions (nothing is applied without confirmation).
     warnings: list = field(default_factory=list)
     skills_created: list = field(default_factory=list)
-    tag_changes: list = field(default_factory=list)
-    dates_moved: list = field(default_factory=list)
+    suggestions: list = field(default_factory=list)
+    dates_proposed: list = field(default_factory=list)
 
     @property
     def ok(self):
@@ -78,12 +77,12 @@ class SyncReport:
             + (f" · {len(self.warnings)} warnings" if self.warnings else "")
         )
         skill_bits = []
-        if self.tag_changes:
-            skill_bits.append(f"{len(self.tag_changes)} projects re-tagged")
+        if self.suggestions:
+            skill_bits.append(f"{len(self.suggestions)} projects with suggestions")
         if self.skills_created:
             skill_bits.append(f"{len(self.skills_created)} skills created hidden")
-        if self.dates_moved:
-            skill_bits.append(f"{len(self.dates_moved)} experience dates extended")
+        if self.dates_proposed:
+            skill_bits.append(f"{len(self.dates_proposed)} experience dates suggested")
         if skill_bits:
             summary += ' · ' + ' · '.join(skill_bits)
         return summary
@@ -217,7 +216,7 @@ def _skills_for_names(names, report, dry_run):
     appearing on the site unannounced.
 
     Returns ``(skill_rows, names)``. In a dry run no row is created, but the name
-    is still returned so the preview reports the tag that would be added.
+    is still returned so the preview reports the suggestion accurately.
     """
     skills = []
     resolved_names = set()
@@ -241,14 +240,20 @@ def _skills_for_names(names, report, dry_run):
     return skills, resolved_names
 
 
-def _sync_project_skills(project, repo, signals, report, dry_run, force_skills, earliest, token):
-    """Bring one project's skill tags in line with what its repository contains.
+def _suggest_project_skills(project, repo, signals, report, dry_run, force_skills,
+                            earliest, token):
+    """Record which skills this repository demonstrates, for the owner to confirm.
 
-    Never raises: a repository that cannot be read leaves the existing tags
-    untouched, because clearing them on a failed read would quietly destroy work.
-    The failure is recorded as a warning rather than an error — the import itself
-    succeeded, and the repository is retried on the next run because its
-    `pushed_at` is only recorded after a successful read.
+    Writes :class:`~portfolio_app.models.SkillSuggestion` rows and nothing else.
+    Tags are never changed here — accepting a suggestion is the owner's decision,
+    made in the admin.
+
+    Never raises: a repository that cannot be read leaves the existing
+    suggestions untouched, because withdrawing them on a failed read would look
+    like "this repository proves nothing". The failure is recorded as a warning
+    rather than an error — the import itself succeeded — and the repository is
+    retried next run because its ``pushed_at`` is only recorded after a
+    successful read.
     """
     label = repo.get('full_name') or repo.get('name') or '?'
     pushed_at = repo.get('pushed_at') or ''
@@ -265,54 +270,79 @@ def _sync_project_skills(project, repo, signals, report, dry_run, force_skills, 
         report.warnings.append(f'{label}: could not read contents ({exc})')
         return
 
-    resolved, resolved_names = _skills_for_names(
-        detect_skill_names(evidence, signals), report, dry_run
-    )
-    current_names = set(project.skills_used.values_list('name', flat=True))
-
-    added = sorted(resolved_names - current_names)
-    removed = sorted(current_names - resolved_names)
-    if added or removed:
-        change = f'{label}: ' + ', '.join(
-            ([f'+{name}' for name in added] + [f'-{name}' for name in removed])
-        )
-        report.tag_changes.append(change + (' (would change)' if dry_run else ''))
-        if not dry_run:
-            project.skills_used.set(resolved)
+    matches = detect_skill_matches(evidence, signals)
+    skills, resolved_names = _skills_for_names(matches.keys(), report, dry_run)
 
     if dry_run:
+        # `skills` is empty in a dry run because no row is created, so report the
+        # resolved names instead.
+        for name in sorted(resolved_names):
+            reason = ', '.join(matches.get(name, []))
+            report.suggestions.append(f'{label}: {name} (would suggest \u00b7 {reason})')
         return
+
+    # Rebuild this project's suggestions: rules may have changed, or the code may
+    # have been refactored, so a suggestion that no longer applies goes away.
+    wanted = {}
+    for skill in skills:
+        wanted[skill.pk] = ', '.join(matches.get(skill.name, []))[:300]
+
+    existing = {s.skill_id: s for s in project.skill_suggestions.all()}
+    removed = [pk for pk in existing if pk not in wanted]
+    if removed:
+        project.skill_suggestions.filter(skill_id__in=removed).delete()
+
+    for pk, reason in wanted.items():
+        current = existing.get(pk)
+        if current is None:
+            SkillSuggestion.objects.create(
+                project=project, skill_id=pk, evidence=reason,
+            )
+            continue
+        if current.evidence != reason:
+            current.evidence = reason
+            current.save(update_fields=['evidence', 'updated_at'])
+
+    # Also drop suggestions for skills the project already carries: they have
+    # been dealt with, so re-suggesting them is noise.
+    already = set(project.skills_used.values_list('pk', flat=True))
+    if already:
+        project.skill_suggestions.filter(skill_id__in=already).delete()
+
+    if wanted:
+        report.suggestions.append(f'{label}: {len(wanted)} suggested')
+
+    # Earliest sighting of each skill, used to propose honest experience dates.
+    created = _parse_github_datetime(repo.get('created_at'))
+    if created:
+        for skill in skills:
+            key = skill.name.lower()
+            if key not in earliest or created.date() < earliest[key]:
+                earliest[key] = created.date()
 
     # Only recorded after a successful read, so a failed run is retried rather
     # than being treated as "already up to date".
     project.github_pushed_at = pushed_at
     project.save(update_fields=['github_pushed_at', 'updated_at'])
 
-    # Earliest sighting of each skill, used to keep experience dates honest.
-    created = _parse_github_datetime(repo.get('created_at'))
-    if created:
-        for name in resolved_names:
-            key = name.lower()
-            if key not in earliest or created.date() < earliest[key]:
-                earliest[key] = created.date()
 
+def propose_skill_dates(earliest, report, dry_run=False):
+    """Record an earlier start date as a *suggestion*, never applying it.
 
-def apply_skill_dates(earliest, report, dry_run=False):
-    """Move a skill's start date earlier when GitHub proves earlier use.
-
-    Deliberately only ever moves a date *earlier*: the sync must never be able to
-    shorten an experience claim the site owner set by hand, only extend it with
-    evidence. A skill with no date yet (a newly detected one) gets its first date
-    here.
+    Only ever proposes a date earlier than the current one: the sync must not be
+    able to shorten an experience claim the site owner set by hand, only offer
+    evidence that it could start sooner.
     """
     for key, when in sorted(earliest.items()):
         skill = Skill.objects.filter(name__iexact=key).first()
-        if skill is None or skill.start_date <= when:
+        if skill is None:
             continue
-        report.dates_moved.append(f'{skill.name}: {skill.start_date} \u2192 {when}')
+        if when >= min(filter(None, [skill.start_date, skill.suggested_start_date])):
+            continue
+        report.dates_proposed.append(f'{skill.name}: {skill.start_date} \u2192 {when}')
         if not dry_run:
-            skill.start_date = when
-            skill.save(update_fields=['start_date', 'updated_at'])
+            skill.suggested_start_date = when
+            skill.save(update_fields=['suggested_start_date', 'updated_at'])
 
 
 def sync_projects(username=None, token=None, dry_run=False, force_skills=False):
@@ -329,7 +359,7 @@ def sync_projects(username=None, token=None, dry_run=False, force_skills=False):
 
     signals = list(SkillSignal.objects.filter(is_active=True))
     if not signals:
-        logger.info('No active skill signals are configured; skill tags will not change.')
+        logger.info('No active skill signals are configured; nothing will be suggested.')
     earliest = {}
 
     for repo in repos:
@@ -353,15 +383,17 @@ def sync_projects(username=None, token=None, dry_run=False, force_skills=False):
                     continue
                 project = Project.objects.create(**defaults)
                 report.created.append(label)
-                _sync_project_skills(
-                    project, repo, signals, report, dry_run, force_skills, earliest, token
-                )
+                if project.suggest_skills:
+                    _suggest_project_skills(
+                        project, repo, signals, report, dry_run, force_skills,
+                        earliest, token,
+                    )
                 continue
 
-            # Only the sync's own bookkeeping is refreshed. name/description/link/
-            # date/image/category/is_published belong to the site owner, so
-            # editing a project here is never undone by a later sync. Skill tags
-            # are the one exception, and only while `auto_skills` is ticked.
+            # name/description/link/date/image/category/skills/is_published all
+            # belong to the site owner, so editing a project is never undone by a
+            # later sync. Skill suggestions are the one thing it adds, and even
+            # those do not become tags without confirmation.
             if dry_run:
                 report.unchanged.append(f'{label} (would refresh)')
             else:
@@ -372,16 +404,17 @@ def sync_projects(username=None, token=None, dry_run=False, force_skills=False):
                 )
                 report.updated.append(label)
 
-            if existing.auto_skills:
-                _sync_project_skills(
-                    existing, repo, signals, report, dry_run, force_skills, earliest, token
+            if existing.suggest_skills:
+                _suggest_project_skills(
+                    existing, repo, signals, report, dry_run, force_skills,
+                    earliest, token,
                 )
 
         except Exception as exc:  # one bad repository must not stop the run
             logger.exception('GitHub sync failed for %s', label)
             report.errors.append(f'{label}: {exc}')
 
-    apply_skill_dates(earliest, report, dry_run=dry_run)
+    propose_skill_dates(earliest, report, dry_run=dry_run)
 
     return report
 

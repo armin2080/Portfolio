@@ -307,4 +307,25 @@ def signal_matches(signal, evidence):
 
 def detect_skill_names(evidence, signals):
     """Every skill name implied by the rules, for this evidence."""
-    return {signal.skill_name for signal in signals if signal_matches(signal, evidence)}
+    return set(detect_skill_matches(evidence, signals))
+
+
+def detect_skill_matches(evidence, signals):
+    """Skill name -> the evidence that matched, so a suggestion can explain itself.
+
+    Showing the reason matters: the site owner confirms or dismisses each
+    suggestion, and "manage.py" is far easier to judge than a bare tag.
+    """
+    matches = {}
+    for signal in signals:
+        if not signal_matches(signal, evidence):
+            continue
+        reason = signal.pattern
+        if signal.kind == 'dependency':
+            reason = f'{signal.pattern} in a dependency file'
+        elif signal.kind == 'language':
+            reason = f'main language {evidence.language}'
+        matches.setdefault(signal.skill_name, [])
+        if reason not in matches[signal.skill_name]:
+            matches[signal.skill_name].append(reason)
+    return matches
