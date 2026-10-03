@@ -5,63 +5,63 @@
 {% block meta_description %}Explore the technical and soft skills of Armin Maddah Asl, including Python, Machine Learning, Django, and more.{% endblock %}
 
 {% block content %}
-<section id="skills" class="bg-page text-heading py-16 animate-on-scroll">
+<section id="skills" class="bg-page text-heading py-12 animate-on-scroll">
     <div class="container mx-auto px-4 md:px-8">
         <div class="text-center">
             <h2 class="text-3xl md:text-4xl font-bold mb-0 md:mb-8">My Skills</h2>
             <span class="heading-rule block md:hidden mx-auto mb-8" aria-hidden="true"></span>
-            <p class="text-lg mb-12 max-w-xl mx-auto">
+            <p class="text-lg mb-10 max-w-xl mx-auto">
                 The areas I work in, and the tools I reach for inside each one.
             </p>
         </div>
 
         {% comment %}
-        One card per main skill, with its sub-skills listed underneath. The card
-        carries an image, a description, the tools and the evidence, which is
-        why the grid is two columns rather than three.
+        One card per main skill, with its sub-skills listed underneath.
+
+        Kept deliberately compact: three columns from `lg`, and a short banner
+        image rather than a full-width one. At 16/9 in two columns the image took
+        ~70% of a 472px card, which made twelve cards fill three thousand pixels
+        of page.
         {% endcomment %}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {% for card in cards %}
             <article class="flex flex-col bg-surface rounded-lg border border-border overflow-hidden shadow-sm hover:shadow-md transition-shadow text-left">
 
-                {# Image, or a placeholder in a fixed aspect ratio so the grid stays aligned. #}
-                <div class="aspect-[16/9] w-full overflow-hidden border-b border-border bg-primary">
+                {# Short banner, or a placeholder of the same height so the rows stay aligned. #}
+                <div class="h-24 md:h-28 w-full overflow-hidden border-b border-border bg-primary">
                     {% if card.skill.image %}
                     <img src="{{ card.skill.image.url }}" alt="{{ card.skill.name }}"
                          loading="lazy" decoding="async"
                          class="w-full h-full object-cover">
                     {% else %}
                     <div class="w-full h-full flex items-center justify-center" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-14 w-14 text-accent opacity-80" viewBox="0 0 24 24" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-9 w-9 text-accent opacity-80" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 14h8v2H8v-2zm0-4h8v2H8v-2z"></path>
                         </svg>
                     </div>
                     {% endif %}
                 </div>
 
-                <div class="flex flex-col flex-grow p-6">
-                    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-3">
-                        <h3 class="text-xl font-semibold text-heading">{{ card.skill.name }}</h3>
-                        <p class="meta">{{ card.skill.start_date|years_since_display }} experience</p>
+                <div class="flex flex-col flex-grow p-4">
+                    <div class="flex flex-wrap items-baseline justify-between gap-x-3 mb-2">
+                        <h3 class="text-base font-semibold text-heading">{{ card.skill.name }}</h3>
+                        <p class="meta">{{ card.skill.start_date|years_since_display }}</p>
                     </div>
 
                     {% if card.skill.description %}
-                    <p class="text-ink mb-4">{{ card.skill.description }}</p>
+                    <p class="text-sm text-ink mb-3">{{ card.skill.description }}</p>
                     {% endif %}
 
                     {% if card.subskills %}
-                    <div class="mt-auto">
-                        <p class="meta mb-2">{{ card.subskills|length }} tool{{ card.subskills|length|pluralize }}</p>
-                        <ul class="flex flex-wrap gap-2">
-                            {% for subskill in card.subskills %}
-                            <li class="border border-border bg-page text-secondary px-2 py-1 rounded font-mono text-[11px] tracking-wide">{{ subskill.name }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
+                    <ul class="mt-auto flex flex-wrap gap-1.5">
+                        {% for subskill in card.subskills %}
+                        <li class="border border-border bg-page text-secondary px-1.5 py-0.5 rounded font-mono text-[10px] tracking-wide">{{ subskill.name }}</li>
+                        {% endfor %}
+                    </ul>
                     {% endif %}
 
                     {% if card.project_count %}
-                    <p class="meta mt-4 pt-4 border-t border-border">
+                    <p class="meta mt-3 pt-3 border-t border-border">
                         Used in
                         <a href="{% url 'projects' %}" class="text-secondary hover:text-heading font-medium">{{ card.project_count }} project{{ card.project_count|pluralize }}</a>
                     </p>

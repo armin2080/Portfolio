@@ -752,7 +752,17 @@ class SkillTreeTests(TestCase):
     def test_a_card_shows_a_placeholder_without_an_image(self):
         response = self.client.get(reverse('skills'))
 
-        self.assertContains(response, 'aspect-[16/9]')
+        # The banner has a fixed height so the grid rows stay aligned whether or
+        # not an image is present.
+        self.assertContains(response, 'h-24 md:h-28')
+        self.assertNotContains(response, '/media/skills/')
+
+    def test_the_grid_uses_three_columns_on_wide_screens(self):
+        # Guards the card size: two columns with a 16/9 image made each card
+        # ~470px tall and the page ~3000px.
+        response = self.client.get(reverse('skills'))
+
+        self.assertContains(response, 'lg:grid-cols-3')
 
 
 class SkillTreeValidationTests(TestCase):
