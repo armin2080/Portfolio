@@ -203,6 +203,52 @@ repository appears on the site without any manual step. Run it by hand with:
 The first run imports every public repository at once, so preview it with
 `--dry-run` first.
 
+### Skills from GitHub
+
+The same sync also tags each imported project with the skills its repository
+actually demonstrates, so the skills page reflects real work without hand-tagging
+every new repository.
+
+Detection is deterministic and never guessed — a tag can always be traced to
+something in the repository:
+
+- **Files and folders** (`manage.py` → Django, `*.ipynb` → Machine Learning,
+  `Dockerfile` → Cloud & Deployment).
+- **Dependency files** — `requirements.txt`, `pyproject.toml`, `Pipfile`,
+  `package.json`, `environment.yml` (`scikit-learn` → Scikit-learn, `torch` →
+  Machine Learning, `psycopg2` → PostgreSQL).
+- **GitHub's reported language.**
+
+GitHub's `language` field alone is not enough: it reports `Jupyter Notebook`,
+`TeX` and `SCSS`, which say little, and never reports Django, pandas or Machine
+Learning.
+
+The rules are editable in the admin under **Skill signals**, so a technology can
+be recognised without a deploy. A detected technology with no matching skill yet
+is created **hidden**, which is how a newly noticed skill reaches the admin for
+review instead of appearing on the site unannounced.
+
+Two things worth knowing:
+
+- **Tags are rebuilt from the repository on each sync**, while a project's
+  *"track skills from GitHub"* box is ticked. Untick it on a project whose tags
+  you curate by hand — the rebuild cannot produce tags no rule can prove (Git,
+  IT Service Management), so it would remove them.
+- **Reading contents costs API requests.** After changing a rule, run
+  `sync_github_projects --force-skills`; an unchanged repository is otherwise
+  skipped, which keeps the steady-state cost near zero.
+
+> **A `GITHUB_TOKEN` is effectively required.** Reading contents needs one
+> request per repository plus one per dependency file, and the unauthenticated
+> limit is 60 requests per hour *per IP* — shared by every device on your
+> network. The first full pass needs more than that, and without a token it only
+> converges over several daily runs. A classic token with **no scopes** is
+> enough, because all the repositories are public:
+
+> ```
+> GITHUB_TOKEN=ghp_your_token_here
+> ```
+
 ### Raspberry Pi deployment
 
 For a lightweight production setup, use the Gunicorn systemd deployment in
