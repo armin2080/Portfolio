@@ -59,6 +59,14 @@ class Skill(models.Model):
         choices=SkillType.choices,
         default=SkillType.TECHNICAL,
     )
+    is_published = models.BooleanField(
+        default=True,
+        help_text=(
+            "Untick to hide this skill from the site. The GitHub sync creates a "
+            "newly detected skill unticked, so nothing appears publicly until you "
+            "have reviewed it and written a description."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -67,6 +75,69 @@ class Skill(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class SkillSignal(models.Model):
+    """A detectable sign in a GitHub repository that implies a skill.
+
+    The sync looks for these in every repository it imports, and links the
+    matching skills to the project. Rules live in the database rather than in
+    code so a mapping can be added from the admin without a deploy.
+
+    `skill_name` is matched against ``Skill.name`` (case-insensitively). When no
+    skill has that name yet the sync creates one, unpublished, so a newly
+    detected technology shows up for review instead of appearing on the site.
+    """
+
+    class Kind(models.TextChoices):
+        PATH = 'path', 'File or folder in the repository'
+        DEPENDENCY = 'dependency', 'Package in a dependency file'
+        LANGUAGE = 'language', "GitHub's main language"
+
+    kind = models.CharField(
+        max_length=16, choices=Kind.choices, default=Kind.PATH,
+        help_text="What to look at in the repository.",
+    )
+    pattern = models.CharField(
+        max_length=100,
+        help_text=(
+            "File rules use a glob, matched against every path and against each "
+            "path segment: <code>manage.py</code>, <code>*.ipynb</code>, "
+            "<code>.github/workflows/*</code>. Package rules match the start of "
+            "a name in requirements.txt, pyproject.toml, Pipfile or "
+            "package.json, so <code>psycopg2</code> finds "
+            "<code>psycopg2-binary</code> and <code>django</code> finds "
+            "<code>djangorestframework</code>. Keep a package rule specific: a "
+            "short pattern over-matches. Language rules compare "
+            "GitHub's reported language."
+        ),
+    )
+    skill_name = models.CharField(
+        max_length=100,
+        help_text=(
+            "The skill to attach, matched by name. Created (hidden) if no skill "
+            "has this name yet."
+        ),
+    )
+    note = models.CharField(
+        max_length=200, blank=True,
+        help_text="Optional note for your own reference.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Untick to stop using this rule without deleting it.",
+    )
+
+    class Meta:
+        ordering = ['kind', 'pattern', 'skill_name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['kind', 'pattern', 'skill_name'], name='unique_skill_signal'
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.get_kind_display()}: {self.pattern} \u2192 {self.skill_name}'
 
 
 class Category(models.Model):
@@ -96,6 +167,15 @@ class Project(models.Model):
         help_text="Optional. Cards show a placeholder until a screenshot is uploaded.",
     )
     skills_used = models.ManyToManyField(Skill, related_name='projects', blank=True)
+    auto_skills = models.BooleanField(
+        default=True,
+        help_text=(
+            "Keep the skill tags above in step with what is actually in the "
+            "repository. The sync adds and removes tags to match, so a tag you "
+            "remove by hand comes back on the next run. Untick this on a project "
+            "whose tags you want to manage yourself."
+        ),
+    )
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
@@ -119,6 +199,13 @@ class Project(models.Model):
     )
     github_synced_at = models.DateTimeField(
         null=True, blank=True, help_text="When this project was last seen by the sync.",
+    )
+    github_pushed_at = models.CharField(
+        max_length=40, blank=True,
+        help_text=(
+            "GitHub's pushed_at as last seen. Reading a repository's contents "
+            "costs API requests, so an unchanged repository is skipped."
+        ),
     )
 
     is_published = models.BooleanField(
