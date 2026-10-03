@@ -228,15 +228,28 @@ be recognised without a deploy. A detected technology with no matching skill yet
 is created **hidden**, which is how a newly noticed skill reaches the admin for
 review instead of appearing on the site unannounced.
 
+**Nothing is tagged automatically.** The sync records what it found as a
+*Skill suggestion* — with the evidence that produced it, such as
+`manage.py` or `pandas in a dependency file` — and you accept or dismiss each one
+under **Skill suggestions** in the admin, individually or in bulk. So a tag like
+IT Service Management, which no rule can prove, is never at risk, and the site
+only ever shows tags you chose.
+
 Two things worth knowing:
 
-- **Tags are rebuilt from the repository on each sync**, while a project's
-  *"track skills from GitHub"* box is ticked. Untick it on a project whose tags
-  you curate by hand — the rebuild cannot produce tags no rule can prove (Git,
-  IT Service Management), so it would remove them.
+- Untick *"suggest skills from GitHub"* on a project to stop suggestions for it
+  entirely.
 - **Reading contents costs API requests.** After changing a rule, run
   `sync_github_projects --force-skills`; an unchanged repository is otherwise
   skipped, which keeps the steady-state cost near zero.
+
+The skills themselves are a portfolio-level set rather than a technology list:
+languages and disciplines (`Python`, `Machine Learning`, `Statistical Modelling`,
+`AI & Language Models`), the platforms under them (`SQL & Databases`,
+`Web Development`, `Cloud & Deployment`) and the foundations (`Linux`, `Git`).
+Specific libraries — pandas, scikit-learn — belong in project descriptions and in
+the evidence behind a suggestion, not as a skill of their own, because a reader
+cannot tell what "Pandas" claims next to "Python".
 
 > **A `GITHUB_TOKEN` is effectively required.** Reading contents needs one
 > request per repository plus one per dependency file, and the unauthenticated

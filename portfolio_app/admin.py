@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
+from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import mark_safe
 import json
@@ -18,6 +19,7 @@ from .models import (
     Project,
     Skill,
     SkillSignal,
+    SkillSuggestion,
     Theme,
     WorkExperience,
     normalize_hex_color,
@@ -55,13 +57,14 @@ class ProfileAdmin(admin.ModelAdmin):
 @admin.register(Skill)
 class SkillsAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'skill_type', 'start_date', 'experience_years', 'project_count',
-        'is_published',
+        'name', 'skill_type', 'start_date', 'suggested_date', 'experience_years',
+        'project_count', 'is_published',
     )
     list_editable = ('is_published',)
     list_filter = ('skill_type', 'is_published')
     search_fields = ('name', 'description')
-    actions = ('publish_skills', 'unpublish_skills')
+    actions = ('publish_skills', 'unpublish_skills', 'apply_suggested_dates')
+    readonly_fields = ('suggested_start_date',)
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(projects_total=Count('projects'))
@@ -77,6 +80,15 @@ class SkillsAdmin(admin.ModelAdmin):
     def project_count(self, obj):
         return obj.projects_total
 
+    @admin.display(description='Suggested date', ordering='suggested_start_date')
+    def suggested_date(self, obj):
+        """An earlier date GitHub evidence supports, waiting to be confirmed."""
+        if not obj.suggested_start_date or obj.suggested_start_date >= obj.start_date:
+            return '-'
+        return format_html(
+            '<strong>{}</strong> <em>(earlier)</em>', obj.suggested_start_date
+        )
+
     @admin.action(description='Publish selected skills')
     def publish_skills(self, request, queryset):
         updated = queryset.update(is_published=True)
@@ -87,10 +99,82 @@ class SkillsAdmin(admin.ModelAdmin):
         updated = queryset.update(is_published=False)
         self.message_user(request, f'{updated} skill(s) hidden.')
 
+    @admin.action(description='Apply suggested experience dates')
+    def apply_suggested_dates(self, request, queryset):
+        """Move start dates earlier where GitHub evidence supports it.
+
+        Only ever earlier: applying suggestions must not be able to shorten an
+        experience claim the site owner set by hand.
+        """
+        applied = 0
+        for skill in queryset.filter(suggested_start_date__isnull=False):
+            if skill.suggested_start_date < skill.start_date:
+                skill.start_date = skill.suggested_start_date
+                skill.suggested_start_date = None
+                skill.save(update_fields=['start_date', 'suggested_start_date', 'updated_at'])
+                applied += 1
+            else:
+                skill.suggested_start_date = None
+                skill.save(update_fields=['suggested_start_date', 'updated_at'])
+        self.message_user(
+            request, f'Applied a suggested date to {applied} skill(s).'
+        )
+
+
+@admin.register(SkillSuggestion)
+class SkillSuggestionAdmin(admin.ModelAdmin):
+    """Review screen for the skills the sync believes each project demonstrates.
+
+    Nothing is tagged until a suggestion is accepted here. Accepting adds the
+    skill to the project; it does not publish the skill, so a newly detected
+    technology still needs publishing under Skills before it appears on the site.
+    """
+
+    list_display = ('project', 'skill', 'skill_published', 'evidence', 'created_at')
+    list_filter = ('skill', 'project', 'skill__is_published')
+    search_fields = ('project__name', 'skill__name', 'evidence')
+    autocomplete_fields = ('project', 'skill')
+    actions = ('accept_suggestions', 'dismiss_suggestions')
+    readonly_fields = ('created_at', 'updated_at')
+
+    @admin.display(description='Skill published', boolean=True)
+    def skill_published(self, obj):
+        return obj.skill.is_published
+
+    @admin.action(description='Accept: add these skills to their projects')
+    def accept_suggestions(self, request, queryset):
+        accepted = 0
+        unpublished = set()
+        for suggestion in queryset.select_related('project', 'skill'):
+            suggestion.project.skills_used.add(suggestion.skill)
+            if not suggestion.skill.is_published:
+                unpublished.add(suggestion.skill.name)
+            accepted += 1
+        queryset.delete()
+        self.message_user(
+            request,
+            f'Added {accepted} skill tag(s) to their projects.'
+            + (
+                ' Still hidden until published: ' + ', '.join(sorted(unpublished))
+                if unpublished
+                else ''
+            ),
+        )
+
+    @admin.action(description='Dismiss: discard without tagging')
+    def dismiss_suggestions(self, request, queryset):
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(
+            request,
+            f'Dismissed {count} suggestion(s). They return if the repository '
+            'changes or after a sync with --force-skills.',
+        )
+
 
 @admin.register(SkillSignal)
 class SkillSignalAdmin(admin.ModelAdmin):
-    """The rules that turn repository contents into skill tags.
+    """The rules that turn repository contents into skill suggestions.
 
     Editing these is how a new technology gets recognised without a deploy. An
     unchanged repository is not re-read, so run
@@ -154,31 +238,63 @@ class ProjectImageFilter(admin.SimpleListFilter):
             return queryset.filter(Q(image='') | Q(image__isnull=True))
 
 
+class ProjectSuggestionFilter(admin.SimpleListFilter):
+    """Find projects the sync has suggestions waiting for."""
+
+    title = 'skill suggestions'
+    parameter_name = 'has_suggestions'
+
+    def lookups(self, request, model_admin):
+        return (('yes', 'Has suggestions to review'), ('no', 'No suggestions'))
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.filter(skill_suggestions__isnull=False).distinct()
+        if self.value() == 'no':
+            return queryset.filter(skill_suggestions__isnull=True)
+
+
+class SkillSuggestionInline(admin.TabularInline):
+    """Suggestions for one project, so they can be judged where the tags are."""
+
+    model = SkillSuggestion
+    extra = 0
+    can_delete = True
+    autocomplete_fields = ('skill',)
+    verbose_name = 'suggested skill'
+    verbose_name_plural = (
+        'suggested skills — accept these on the Skill suggestions page, or with '
+        'the "Accept all pending skill suggestions" action'
+    )
+
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'category', 'date', 'is_published', 'has_image', 'has_description', 'source',
+        'name', 'category', 'date', 'is_published', 'has_image', 'has_description',
+        'source', 'suggestions_count',
     )
     list_editable = ('is_published',)
     list_filter = (
-        'is_published', ProjectSourceFilter, ProjectImageFilter, 'auto_skills',
-        'category',
+        'is_published', ProjectSourceFilter, ProjectImageFilter,
+        ProjectSuggestionFilter, 'suggest_skills', 'category',
     )
     search_fields = ('name', 'description', 'github_full_name')
     readonly_fields = (
         'github_full_name', 'github_repo_id', 'github_synced_at', 'github_pushed_at',
     )
-    actions = ('refresh_from_github',)
+    actions = ('refresh_from_github', 'accept_skill_suggestions')
+    inlines = (SkillSuggestionInline,)
     fieldsets = (
         (None, {
             'fields': ('name', 'description', 'link', 'date', 'is_published'),
         }),
         ('Presentation', {
-            'fields': ('image', 'category', 'skills_used', 'auto_skills'),
+            'fields': ('image', 'category', 'skills_used', 'suggest_skills'),
             'description': (
                 'Cards show a placeholder graphic until an image is uploaded. '
-                'Set these yourself — the GitHub sync never changes them, except '
-                'the skill tags while \u201ctrack skills from GitHub\u201d is ticked.'
+                'Set these yourself — the GitHub sync never changes them, and its '
+                'skill suggestions stay suggestions until you accept them.'
             ),
         }),
         ('GitHub', {
@@ -198,6 +314,38 @@ class ProjectAdmin(admin.ModelAdmin):
     @admin.display(description='Source')
     def source(self, obj):
         return 'GitHub' if obj.github_repo_id else 'Manual'
+
+    @admin.display(description='Suggested skills')
+    def suggestions_count(self, obj):
+        """A count with a link, so reviewing is one click from the list."""
+        count = len(obj.skill_suggestions.all())
+        if not count:
+            return '-'
+        url = reverse('admin:portfolio_app_skillsuggestion_changelist')
+        return format_html(
+            '<a href="{}?project__id__exact={}">{} to review</a>', url, obj.pk, count
+        )
+
+    @admin.action(description='Accept all pending skill suggestions')
+    def accept_skill_suggestions(self, request, queryset):
+        accepted = 0
+        unpublished = set()
+        for project in queryset.prefetch_related('skill_suggestions__skill'):
+            for suggestion in project.skill_suggestions.all():
+                project.skills_used.add(suggestion.skill)
+                if not suggestion.skill.is_published:
+                    unpublished.add(suggestion.skill.name)
+                suggestion.delete()
+                accepted += 1
+        self.message_user(
+            request,
+            f'Added {accepted} suggested skill tag(s).'
+            + (
+                ' Still hidden until published: ' + ', '.join(sorted(unpublished))
+                if unpublished
+                else ''
+            ),
+        )
 
     @admin.display(description='Image', boolean=True)
     def has_image(self, obj):

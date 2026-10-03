@@ -5,9 +5,9 @@ Run daily by a systemd timer (see SYSTEMD_DEPLOY.md). Safe to run by hand:
     python manage.py sync_github_projects --dry-run
     python manage.py sync_github_projects
 
-Nothing is ever deleted, and edits made in the admin are never overwritten, so a
-run cannot damage existing content — with one deliberate exception: a project's
-skill tags are kept in step with its repository while `auto_skills` is ticked.
+Nothing is ever deleted, and edits made in the admin are never overwritten. Skill
+tags are only ever *suggested*: the sync records what each repository contains,
+and a suggestion becomes a tag when it is accepted in the admin.
 """
 
 from django.conf import settings
@@ -81,19 +81,19 @@ class Command(BaseCommand):
             self.stdout.write('\nRefreshed:')
             for name in report.updated:
                 self.stdout.write(f'  ~ {name}')
-        if report.tag_changes:
-            self.stdout.write('\nSkill tags:')
-            for change in report.tag_changes:
-                self.stdout.write(f'  * {change}')
+        if report.suggestions:
+            self.stdout.write('\nSkill suggestions (review them in /admin/):')
+            for suggestion in report.suggestions:
+                self.stdout.write(f'  ? {suggestion}')
         if report.skills_created:
             self.stdout.write(
                 '\nSkills created (hidden until you publish them in /admin/):'
             )
             for name in report.skills_created:
-                self.stdout.write(f'  ? {name}')
-        if report.dates_moved:
-            self.stdout.write('\nExperience dates extended:')
-            for change in report.dates_moved:
+                self.stdout.write(f'  + {name}')
+        if report.dates_proposed:
+            self.stdout.write('\nExperience dates suggested:')
+            for change in report.dates_proposed:
                 self.stdout.write(f'  ^ {change}')
         if report.warnings:
             self.stdout.write(self.style.WARNING('\nWarnings:'))

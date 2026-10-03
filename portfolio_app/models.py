@@ -62,9 +62,17 @@ class Skill(models.Model):
     is_published = models.BooleanField(
         default=True,
         help_text=(
-            "Untick to hide this skill from the site. The GitHub sync creates a "
-            "newly detected skill unticked, so nothing appears publicly until you "
-            "have reviewed it and written a description."
+            "Untick to hide this skill from the site. A skill the GitHub sync "
+            "detects for the first time is created unticked, so nothing appears "
+            "publicly until you have reviewed it and written a description."
+        ),
+    )
+    suggested_start_date = models.DateField(
+        null=True, blank=True,
+        help_text=(
+            "Earlier date suggested by GitHub evidence, waiting for your "
+            "confirmation. Apply it from the skills list; it never overwrites "
+            "the date above on its own."
         ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -140,6 +148,45 @@ class SkillSignal(models.Model):
         return f'{self.get_kind_display()}: {self.pattern} \u2192 {self.skill_name}'
 
 
+class SkillSuggestion(models.Model):
+    """A skill the sync believes a project demonstrates, awaiting confirmation.
+
+    Suggestions are how the sync communicates without writing anything: it
+    records what it detected and why, and the site owner accepts or dismisses it.
+    That keeps a rebuild from silently dropping a tag no rule can prove, such as
+    IT Service Management, and means the sync can never damage curated tags.
+
+    One row per project and skill, so re-running the sync updates the evidence
+    rather than piling up duplicates.
+    """
+
+    project = models.ForeignKey(
+        'Project', on_delete=models.CASCADE, related_name='skill_suggestions',
+    )
+    skill = models.ForeignKey(
+        Skill, on_delete=models.CASCADE, related_name='suggestions',
+    )
+    evidence = models.CharField(
+        max_length=300, blank=True,
+        help_text='What in the repository suggested this, for example "manage.py".',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['project__name', 'skill__name']
+        verbose_name = 'Skill suggestion'
+        verbose_name_plural = 'Skill suggestions'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'skill'], name='unique_project_skill_suggestion'
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.project.name}: {self.skill.name}'
+
+
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True, blank=True)
@@ -167,13 +214,13 @@ class Project(models.Model):
         help_text="Optional. Cards show a placeholder until a screenshot is uploaded.",
     )
     skills_used = models.ManyToManyField(Skill, related_name='projects', blank=True)
-    auto_skills = models.BooleanField(
+    suggest_skills = models.BooleanField(
         default=True,
+        verbose_name='suggest skills from GitHub',
         help_text=(
-            "Keep the skill tags above in step with what is actually in the "
-            "repository. The sync adds and removes tags to match, so a tag you "
-            "remove by hand comes back on the next run. Untick this on a project "
-            "whose tags you want to manage yourself."
+            "Have the sync read this repository and propose skill tags for review. "
+            "Suggestions are only ideas: a tag is added when you accept it, so "
+            "the tags above stay exactly as you set them."
         ),
     )
     category = models.ForeignKey(
