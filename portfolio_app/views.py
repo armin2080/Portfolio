@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.mail import send_mail
 from django.conf import settings
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 from django.db.models.functions import TruncDate
 from django.shortcuts import render, redirect
 from django.utils import timezone
@@ -27,13 +27,22 @@ from .utils import client_ip
 logger = logging.getLogger(__name__)
 
 
+def published_skills():
+    """Prefetch a project's skills, leaving out any that are not published.
+
+    A hidden skill must not appear on a project card, and filtering in the
+    prefetch keeps this to one query rather than one per card.
+    """
+    return Prefetch('skills_used', queryset=Skill.objects.filter(is_published=True))
+
+
 def index(req):
-    skills = Skill.objects.all()[:3]
+    skills = Skill.objects.filter(is_published=True)[:3]
     # select_related/prefetch_related avoid extra queries in the card markup.
     projects = (
         Project.objects.filter(is_published=True)
         .select_related('category')
-        .prefetch_related('skills_used')[:3]
+        .prefetch_related(published_skills())[:3]
     )
     profile = Profile.objects.first()
 
@@ -173,7 +182,7 @@ def dashboard(req):
 
 
 def skills_view(req):
-    skills = Skill.objects.all()
+    skills = Skill.objects.filter(is_published=True)
     return render(req, 'skills.html', {'skills': skills})
 
 
@@ -182,7 +191,7 @@ def projects_view(req):
     projects = (
         Project.objects.filter(is_published=True)
         .select_related('category')
-        .prefetch_related('skills_used')
+        .prefetch_related(published_skills())
     )
     categories = Category.objects.all()
 
@@ -200,7 +209,7 @@ def resume_view(req):
     profile = Profile.objects.first()
     educations = Education.objects.all()
     work_experiences = WorkExperience.objects.all()
-    skills = Skill.objects.all()
+    skills = Skill.objects.filter(is_published=True)
     certificates = Certificate.objects.all()
 
     return render(req, 'resume.html', {

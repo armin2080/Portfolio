@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import mark_safe
 import json
@@ -17,6 +17,7 @@ from .models import (
     Profile,
     Project,
     Skill,
+    SkillSignal,
     Theme,
     WorkExperience,
     normalize_hex_color,
@@ -53,9 +54,17 @@ class ProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Skill)
 class SkillsAdmin(admin.ModelAdmin):
-    list_display = ('name', 'skill_type', 'start_date', 'experience_years')
-    list_filter = ('skill_type',)
-    search_fields = ('name',)
+    list_display = (
+        'name', 'skill_type', 'start_date', 'experience_years', 'project_count',
+        'is_published',
+    )
+    list_editable = ('is_published',)
+    list_filter = ('skill_type', 'is_published')
+    search_fields = ('name', 'description')
+    actions = ('publish_skills', 'unpublish_skills')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(projects_total=Count('projects'))
 
     @admin.display(description='Experience')
     def experience_years(self, obj):
@@ -63,6 +72,51 @@ class SkillsAdmin(admin.ModelAdmin):
         from dateutil.relativedelta import relativedelta
         years = relativedelta(timezone.now().date(), obj.start_date).years
         return f"{years} year{'s' if years != 1 else ''}"
+
+    @admin.display(description='Projects', ordering='projects_total')
+    def project_count(self, obj):
+        return obj.projects_total
+
+    @admin.action(description='Publish selected skills')
+    def publish_skills(self, request, queryset):
+        updated = queryset.update(is_published=True)
+        self.message_user(request, f'{updated} skill(s) published.')
+
+    @admin.action(description='Hide selected skills')
+    def unpublish_skills(self, request, queryset):
+        updated = queryset.update(is_published=False)
+        self.message_user(request, f'{updated} skill(s) hidden.')
+
+
+@admin.register(SkillSignal)
+class SkillSignalAdmin(admin.ModelAdmin):
+    """The rules that turn repository contents into skill tags.
+
+    Editing these is how a new technology gets recognised without a deploy. An
+    unchanged repository is not re-read, so run
+    ``manage.py sync_github_projects --force-skills`` after changing a rule.
+    """
+
+    list_display = ('kind', 'pattern', 'skill_status', 'is_active', 'note')
+    list_editable = ('is_active',)
+    list_filter = ('kind', 'is_active')
+    search_fields = ('pattern', 'skill_name', 'note')
+    fieldsets = (
+        (None, {
+            'fields': ('kind', 'pattern', 'skill_name', 'is_active', 'note'),
+            'description': (
+                'A rule that matches a repository adds its skill to that project. '
+                'After changing a rule, run \u201csync_github_projects --force-skills\u201d '
+                'so repositories that have not changed are read again.'
+            ),
+        }),
+    )
+
+    @admin.display(description='Skill')
+    def skill_status(self, obj):
+        if Skill.objects.filter(name__iexact=obj.skill_name).exists():
+            return obj.skill_name
+        return format_html('{} <em>(created hidden when first matched)</em>', obj.skill_name)
 
 
 @admin.register(Category)
@@ -106,23 +160,32 @@ class ProjectAdmin(admin.ModelAdmin):
         'name', 'category', 'date', 'is_published', 'has_image', 'has_description', 'source',
     )
     list_editable = ('is_published',)
-    list_filter = ('is_published', ProjectSourceFilter, ProjectImageFilter, 'category')
+    list_filter = (
+        'is_published', ProjectSourceFilter, ProjectImageFilter, 'auto_skills',
+        'category',
+    )
     search_fields = ('name', 'description', 'github_full_name')
-    readonly_fields = ('github_full_name', 'github_repo_id', 'github_synced_at')
+    readonly_fields = (
+        'github_full_name', 'github_repo_id', 'github_synced_at', 'github_pushed_at',
+    )
     actions = ('refresh_from_github',)
     fieldsets = (
         (None, {
             'fields': ('name', 'description', 'link', 'date', 'is_published'),
         }),
         ('Presentation', {
-            'fields': ('image', 'category', 'skills_used'),
+            'fields': ('image', 'category', 'skills_used', 'auto_skills'),
             'description': (
                 'Cards show a placeholder graphic until an image is uploaded. '
-                'Set these yourself — the GitHub sync never changes them.'
+                'Set these yourself — the GitHub sync never changes them, except '
+                'the skill tags while \u201ctrack skills from GitHub\u201d is ticked.'
             ),
         }),
         ('GitHub', {
-            'fields': ('github_full_name', 'github_repo_id', 'github_synced_at'),
+            'fields': (
+                'github_full_name', 'github_repo_id', 'github_synced_at',
+                'github_pushed_at',
+            ),
             'classes': ('collapse',),
             'description': (
                 'Imported from GitHub. The daily sync only refreshes the '

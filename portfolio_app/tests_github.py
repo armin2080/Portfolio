@@ -59,9 +59,19 @@ class FakeResponse:
 
 
 def urlopen_returning(payload, headers=None):
+    """Serve ``payload`` for the repository list and an empty tree for contents.
+
+    The sync also reads each repository's file list to detect skills; these tests
+    are about importing, so the tree is empty and nothing matches.
+    """
+
+    def responder(request, *args, **kwargs):
+        if '/git/trees/' in request.full_url:
+            return FakeResponse({'tree': [], 'truncated': False})
+        return FakeResponse(payload, headers)
+
     return patch(
-        'portfolio_app.github_sync.urllib.request.urlopen',
-        return_value=FakeResponse(payload, headers),
+        'portfolio_app.github_sync.urllib.request.urlopen', side_effect=responder,
     )
 
 
