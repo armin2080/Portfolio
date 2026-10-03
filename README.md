@@ -251,6 +251,35 @@ Specific libraries — pandas, scikit-learn — belong in project descriptions a
 the evidence behind a suggestion, not as a skill of their own, because a reader
 cannot tell what "Pandas" claims next to "Python".
 
+### Skills page: main skills and sub-skills
+
+The skills page is a two-level tree. A **main skill** gets its own card with an
+image, a description, how long you have used it, and how many projects it
+appears in. Its **sub-skills** are listed underneath as small labels.
+
+This is where the specific technologies live. A flat list has to choose between
+being readable and being specific — "Pandas" next to "Python" reads as a peer of
+a language, but dropping it loses the detail that says what the work involved.
+The tree keeps both: `Python` on the card, `Jupyter Notebook`, `FastAPI` and
+`NumPy` underneath it.
+
+- Add or rearrange the tree in the admin under **Skills**. Leave *parent* empty
+  for a main skill; set it to make a sub-skill. A main skill can also be edited
+  from its own page, where its sub-skills appear inline.
+- **Images are for main skills.** Upload one under *Skills* → *Presentation*; a
+  placeholder is used until you do. Sub-skills are labels, so they do not need
+  one.
+- **Display order** puts a skill where you want it on the page. Leave it at 0 to
+  fall back to ordering by how long you have used the skill.
+- **Project cards show the main skill behind each tag.** A project tagged with
+  pandas or PyMC displays as *Data Analysis & Visualisation* and *Statistical
+  Modelling*, so cards read at a consistent level while the skills page keeps the
+  detail. The "used in N projects" count includes sub-skill work, so adding
+  detail never makes a main skill look less used.
+- A detection rule can name the main skill a newly found technology belongs under
+  (`parent_skill_name`), so an unfamiliar package is created in the right place
+  rather than at the top level.
+
 > **A `GITHUB_TOKEN` is effectively required.** Reading contents needs one
 > request per repository plus one per dependency file, and the unauthenticated
 > limit is 60 requests per hour *per IP* — shared by every device on your

@@ -63,6 +63,11 @@ class ProfileSingletonTests(TestCase):
 
 
 class SkillModelTests(TestCase):
+    def setUp(self):
+        # The skill tree is data seeded by a migration and is present in the test
+        # database, so each test states the skills it cares about explicitly.
+        Skill.objects.all().delete()
+
     def test_skill_type_defaults_to_technical(self):
         skill = Skill.objects.create(name="Python", start_date=date(2020, 1, 1))
         self.assertEqual(skill.skill_type, Skill.SkillType.TECHNICAL)
@@ -71,6 +76,21 @@ class SkillModelTests(TestCase):
         Skill.objects.create(name="B", start_date=date(2022, 1, 1))
         Skill.objects.create(name="A", start_date=date(2018, 1, 1))
         self.assertEqual([s.name for s in Skill.objects.all()], ["A", "B"])
+
+    def test_display_order_overrides_the_start_date(self):
+        # Pinning a skill to the front of the page must beat the date ordering,
+        # otherwise the site owner cannot choose what to lead with.
+        Skill.objects.create(name="Oldest", start_date=date(2010, 1, 1), display_order=2)
+        Skill.objects.create(name="Newest", start_date=date(2024, 1, 1), display_order=1)
+        self.assertEqual([s.name for s in Skill.objects.all()], ["Newest", "Oldest"])
+
+    def test_a_skill_is_a_main_skill_unless_it_has_a_parent(self):
+        parent = Skill.objects.create(name="Python", start_date=date(2020, 1, 1))
+        child = Skill.objects.create(
+            name="Pandas", start_date=date(2020, 1, 1), parent=parent,
+        )
+        self.assertTrue(parent.is_main_skill)
+        self.assertFalse(child.is_main_skill)
 
 
 class ProjectModelTests(TestCase):

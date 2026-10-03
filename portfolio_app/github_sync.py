@@ -208,31 +208,65 @@ def project_defaults_from_repo(repo):
     }
 
 
-def _skills_for_names(names, report, dry_run):
+def _skills_for_names(names, report, dry_run, signals=()):
     """Skill rows for these names, creating hidden ones for anything new.
 
     A name with no matching skill is a technology the site does not list yet.
     Creating it unpublished means it shows up in the admin for review instead of
     appearing on the site unannounced.
 
+    When a rule says which main skill a new sub-skill belongs under
+    (``parent_skill_name``), the created skill is attached to it. Without that a
+    newly detected technology would land at the top level and need re-parenting
+    by hand, which is exactly the clutter the tree exists to avoid.
+
     Returns ``(skill_rows, names)``. In a dry run no row is created, but the name
     is still returned so the preview reports the suggestion accurately.
     """
+    # name -> main skill to attach a newly created skill to.
+    parents = {}
+    for signal in signals:
+        if signal.parent_skill_name:
+            parents.setdefault(
+                signal.skill_name.lower(), signal.parent_skill_name
+            )
+
     skills = []
     resolved_names = set()
     for name in sorted(names):
         skill = Skill.objects.filter(name__iexact=name).first()
         if skill is None:
             if dry_run:
-                report.skills_created.append(f'{name} (would create, hidden)')
+                parent = parents.get(name.lower())
+                report.skills_created.append(
+                    f'{name} (would create, hidden'
+                    + (f', under {parent})' if parent else ')')
+                )
                 resolved_names.add(name)
                 continue
+            parent_skill = None
+            parent_name = parents.get(name.lower())
+            if parent_name:
+                parent_skill = Skill.objects.filter(
+                    name__iexact=parent_name
+                ).first()
+                if parent_skill is None:
+                    logger.warning(
+                        'Rule wanted %s under %s, but no such main skill exists; '
+                        'creating %s at the top level instead.',
+                        name, parent_name, name,
+                    )
             skill = Skill.objects.create(
                 name=name,
-                start_date=timezone.now().date(),
+                start_date=parent_skill.start_date if parent_skill
+                else timezone.now().date(),
+                parent=parent_skill,
                 is_published=False,
             )
-            report.skills_created.append(f'{name} (created, hidden)')
+            report.skills_created.append(
+                f'{name} (created, hidden'
+                + (f', under {parent_skill.name})' if parent_skill else ')')
+            )
         skills.append(skill)
         # The stored spelling, so a rule in a different case does not read as a
         # rename of an existing skill.
@@ -271,7 +305,9 @@ def _suggest_project_skills(project, repo, signals, report, dry_run, force_skill
         return
 
     matches = detect_skill_matches(evidence, signals)
-    skills, resolved_names = _skills_for_names(matches.keys(), report, dry_run)
+    skills, resolved_names = _skills_for_names(
+        matches.keys(), report, dry_run, signals
+    )
 
     if dry_run:
         # `skills` is empty in a dry run because no row is created, so report the

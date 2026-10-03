@@ -181,7 +181,7 @@
                     <p class="text-ink mb-4">{{ project.description|truncatechars:80 }}</p>
                     {% endif %}
                     <div class="flex flex-wrap gap-2 mb-4">
-                        {% for skill in project.skills_used.all %}
+                        {% for skill in project.display_skills %}
                         <span class="border border-border bg-page text-secondary px-2 py-1 rounded font-mono text-[11px] tracking-wide">{{ skill.name }}</span>
                         {% empty %}
                         <span class="text-muted text-xs">No skills associated with this project.</span>
