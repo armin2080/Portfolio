@@ -31,13 +31,18 @@ def published_skills():
     """Prefetch a project's skills, leaving out any that are not published.
 
     A hidden skill must not appear on a project card, and filtering in the
-    prefetch keeps this to one query rather than one per card.
+    prefetch keeps this to one query rather than one per card. `parent` is
+    selected because the card rolls a tag up to its main skill
+    (see ``Project.display_skills``).
     """
-    return Prefetch('skills_used', queryset=Skill.objects.filter(is_published=True))
+    return Prefetch(
+        'skills_used',
+        queryset=Skill.objects.filter(is_published=True).select_related('parent'),
+    )
 
 
 def index(req):
-    skills = Skill.objects.filter(is_published=True)[:3]
+    skills = Skill.objects.filter(is_published=True, parent__isnull=True)[:3]
     # select_related/prefetch_related avoid extra queries in the card markup.
     projects = (
         Project.objects.filter(is_published=True)
@@ -182,8 +187,45 @@ def dashboard(req):
 
 
 def skills_view(req):
-    skills = Skill.objects.filter(is_published=True)
-    return render(req, 'skills.html', {'skills': skills})
+    """Main skills as cards, each listing its sub-skills."""
+    main_skills = list(
+        Skill.objects.filter(is_published=True, parent__isnull=True)
+        .order_by('display_order', 'start_date', 'name')
+    )
+    published_subskills = list(
+        Skill.objects.filter(is_published=True, parent__isnull=False)
+        .order_by('display_order', 'start_date', 'name')
+    )
+
+    # One query for every tag, then dedupe in Python so a project counts once
+    # per main skill even when it carries several of that skill's sub-skills.
+    tags = {}
+    for project_id, skill_id in Project.skills_used.through.objects.values_list(
+        'project_id', 'skill_id'
+    ):
+        tags.setdefault(skill_id, set()).add(project_id)
+
+    subskills_by_parent = {}
+    for subskill in published_subskills:
+        subskills_by_parent.setdefault(subskill.parent_id, []).append(subskill)
+
+    cards = []
+    for skill in main_skills:
+        children = subskills_by_parent.get(skill.pk, [])
+        project_ids = set(tags.get(skill.pk, set()))
+        for child in children:
+            project_ids |= tags.get(child.pk, set())
+        cards.append({
+            'skill': skill,
+            'subskills': children,
+            'project_count': len(project_ids),
+        })
+
+    return render(req, 'skills.html', {
+        'cards': cards,
+        # Kept for the older flat template and any tests that expect it.
+        'skills': [card['skill'] for card in cards],
+    })
 
 
 def projects_view(req):
@@ -209,7 +251,8 @@ def resume_view(req):
     profile = Profile.objects.first()
     educations = Education.objects.all()
     work_experiences = WorkExperience.objects.all()
-    skills = Skill.objects.filter(is_published=True)
+    # Main skills only: the resume lists the headline skills, not the whole tree.
+    skills = Skill.objects.filter(is_published=True, parent__isnull=True)
     certificates = Certificate.objects.all()
 
     return render(req, 'resume.html', {

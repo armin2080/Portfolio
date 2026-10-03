@@ -54,20 +54,78 @@ class ProfileAdmin(admin.ModelAdmin):
         return False
 
 
+class SubSkillInline(admin.TabularInline):
+    """Manage a main skill's sub-skills from the main skill's own page.
+
+    A sub-skill is a Skill with a parent, so this is a self-referential inline.
+    """
+
+    model = Skill
+    fk_name = 'parent'
+    extra = 0
+    fields = ('name', 'skill_type', 'start_date', 'display_order', 'is_published')
+    verbose_name = 'sub-skill'
+    verbose_name_plural = 'sub-skills (tools shown under this skill)'
+
+
+class SkillParentFilter(admin.SimpleListFilter):
+    title = 'level'
+    parameter_name = 'level'
+
+    def lookups(self, request, model_admin):
+        return (('main', 'Main skills'), ('sub', 'Sub-skills'))
+
+    def queryset(self, request, queryset):
+        if self.value() == 'main':
+            return queryset.filter(parent__isnull=True)
+        if self.value() == 'sub':
+            return queryset.filter(parent__isnull=False)
+
+
 @admin.register(Skill)
 class SkillsAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'skill_type', 'start_date', 'suggested_date', 'experience_years',
-        'project_count', 'is_published',
+        'name', 'parent', 'skill_type', 'start_date', 'suggested_date',
+        'experience_years', 'project_count', 'display_order', 'is_published',
     )
-    list_editable = ('is_published',)
-    list_filter = ('skill_type', 'is_published')
+    list_editable = ('display_order', 'is_published')
+    list_filter = ('skill_type', 'is_published', SkillParentFilter, 'parent')
     search_fields = ('name', 'description')
+    autocomplete_fields = ('parent',)
     actions = ('publish_skills', 'unpublish_skills', 'apply_suggested_dates')
+    inlines = (SubSkillInline,)
     readonly_fields = ('suggested_start_date',)
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'parent', 'skill_type'),
+            'description': (
+                'Leave <strong>parent</strong> empty for a main skill, which gets '
+                'its own card with an image. Set it to make this a sub-skill '
+                'listed underneath that card.'
+            ),
+        }),
+        ('Presentation', {
+            'fields': ('image', 'description', 'display_order'),
+            'description': (
+                'The image is used on the main skill card. Sub-skills are shown '
+                'as small labels, so they do not need one.'
+            ),
+        }),
+        ('Experience', {
+            'fields': ('start_date', 'suggested_start_date', 'is_published'),
+            'description': (
+                'A suggested date comes from GitHub evidence and is applied with '
+                'the "Apply suggested experience dates" action, never on its own.'
+            ),
+        }),
+    )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).annotate(projects_total=Count('projects'))
+        return (
+            super().get_queryset(request)
+            .select_related('parent')
+            .annotate(projects_total=Count('projects'))
+        )
 
     @admin.display(description='Experience')
     def experience_years(self, obj):
@@ -78,7 +136,13 @@ class SkillsAdmin(admin.ModelAdmin):
 
     @admin.display(description='Projects', ordering='projects_total')
     def project_count(self, obj):
-        return obj.projects_total
+        """Own tags, plus those of any sub-skills, since the card shows both."""
+        if obj.parent_id is not None:
+            return obj.projects_total
+        child_ids = list(obj.subskills.values_list('pk', flat=True))
+        return Project.objects.filter(
+            Q(skills_used__pk=obj.pk) | Q(skills_used__pk__in=child_ids)
+        ).distinct().count()
 
     @admin.display(description='Suggested date', ordering='suggested_start_date')
     def suggested_date(self, obj):
@@ -184,10 +248,13 @@ class SkillSignalAdmin(admin.ModelAdmin):
     list_display = ('kind', 'pattern', 'skill_status', 'is_active', 'note')
     list_editable = ('is_active',)
     list_filter = ('kind', 'is_active')
-    search_fields = ('pattern', 'skill_name', 'note')
+    search_fields = ('pattern', 'skill_name', 'parent_skill_name', 'note')
     fieldsets = (
         (None, {
-            'fields': ('kind', 'pattern', 'skill_name', 'is_active', 'note'),
+            'fields': (
+                'kind', 'pattern', 'skill_name', 'parent_skill_name', 'is_active',
+                'note',
+            ),
             'description': (
                 'A rule that matches a repository adds its skill to that project. '
                 'After changing a rule, run \u201csync_github_projects --force-skills\u201d '
@@ -200,7 +267,10 @@ class SkillSignalAdmin(admin.ModelAdmin):
     def skill_status(self, obj):
         if Skill.objects.filter(name__iexact=obj.skill_name).exists():
             return obj.skill_name
-        return format_html('{} <em>(created hidden when first matched)</em>', obj.skill_name)
+        label = obj.skill_name
+        if obj.parent_skill_name:
+            label = f'{obj.parent_skill_name} \u203a {label}'
+        return format_html('{} <em>(created hidden when first matched)</em>', label)
 
 
 @admin.register(Category)

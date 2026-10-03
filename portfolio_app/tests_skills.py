@@ -10,6 +10,7 @@ import json
 from datetime import date
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -349,9 +350,10 @@ class FetchEvidenceTests(TestCase):
 # ---------------------------------------------------------------------------
 class SkillSuggestionSyncTests(TestCase):
     def setUp(self):
-        # The seeded rules are data from a migration; tests define their own so
-        # the expectation is visible right here.
+        # The seeded rules and skill tree are data from migrations and are
+        # present in the test database; each test states its own explicitly.
         SkillSignal.objects.all().delete()
+        Skill.objects.all().delete()
 
     def _run(self, repos=None, tree_paths=(), manifests=None, calls=None,
              fail_tree=False, fail_contents=False, **kwargs):
@@ -569,6 +571,9 @@ class _Report:
 # Experience dates
 # ---------------------------------------------------------------------------
 class SkillDateTests(TestCase):
+    def setUp(self):
+        Skill.objects.all().delete()
+
     def test_an_earlier_date_is_proposed_not_applied(self):
         Skill.objects.create(name='Python', start_date=date(2022, 1, 1))
         report = _Report()
@@ -624,6 +629,7 @@ class SkillDateTests(TestCase):
 # ---------------------------------------------------------------------------
 class HiddenSkillTests(TestCase):
     def setUp(self):
+        Skill.objects.all().delete()
         self.hidden = Skill.objects.create(
             name='FastAPI', start_date=date(2024, 1, 1), is_published=False,
         )
@@ -652,3 +658,198 @@ class HiddenSkillTests(TestCase):
 
         self.assertContains(response, 'Python')
         self.assertNotContains(response, 'FastAPI')
+
+
+# ---------------------------------------------------------------------------
+# Main skills and sub-skills
+# ---------------------------------------------------------------------------
+class SkillTreeTests(TestCase):
+    """The skills page shows main skills as cards, with sub-skills underneath."""
+
+    def setUp(self):
+        # Start from nothing: the real tree is seeded by a migration.
+        Skill.objects.all().delete()
+        self.parent = Skill.objects.create(
+            name='Python', start_date=date(2020, 1, 1), description='Main language.',
+            display_order=1,
+        )
+        self.child = Skill.objects.create(
+            name='Pandas', start_date=date(2020, 1, 1), parent=self.parent,
+        )
+
+    def test_a_subskill_appears_under_its_main_skill(self):
+        response = self.client.get(reverse('skills'))
+
+        self.assertContains(response, 'Python')
+        self.assertContains(response, 'Pandas')
+
+    def test_the_card_lists_the_subskills(self):
+        response = self.client.get(reverse('skills'))
+        card = response.context['cards'][0]
+
+        self.assertEqual(card['skill'], self.parent)
+        self.assertEqual(card['subskills'], [self.child])
+
+    def test_only_main_skills_get_a_card(self):
+        response = self.client.get(reverse('skills'))
+
+        self.assertEqual([c['skill'].name for c in response.context['cards']], ['Python'])
+
+    def test_a_hidden_subskill_is_not_listed(self):
+        self.child.is_published = False
+        self.child.save()
+
+        response = self.client.get(reverse('skills'))
+
+        self.assertNotContains(response, 'Pandas')
+
+    def test_a_hidden_main_skill_is_not_shown(self):
+        self.parent.is_published = False
+        self.parent.save()
+
+        cards = self.client.get(reverse('skills')).context['cards']
+
+        self.assertEqual(cards, [])
+
+    def test_project_count_includes_subskill_work(self):
+        # A project tagged only with pandas should count towards Python, or
+        # adding detail to the tree would make a main skill look less used.
+        project = Project.objects.create(name='P', link='https://example.invalid')
+        project.skills_used.set([self.child])
+
+        card = self.client.get(reverse('skills')).context['cards'][0]
+
+        self.assertEqual(card['project_count'], 1)
+
+    def test_a_project_is_counted_once_however_many_subskills_it_uses(self):
+        project = Project.objects.create(name='P', link='https://example.invalid')
+        other = Skill.objects.create(
+            name='NumPy', start_date=date(2020, 1, 1), parent=self.parent,
+        )
+        project.skills_used.set([self.child, other, self.parent])
+
+        card = self.client.get(reverse('skills')).context['cards'][0]
+
+        self.assertEqual(card['project_count'], 1)
+
+    def test_display_order_controls_the_page_order(self):
+        Skill.objects.create(
+            name='Machine Learning', start_date=date(2015, 1, 1), display_order=0,
+        )
+
+        cards = self.client.get(reverse('skills')).context['cards']
+
+        self.assertEqual([c['skill'].name for c in cards], ['Machine Learning', 'Python'])
+
+    def test_a_card_shows_the_image_when_one_is_set(self):
+        self.parent.image = 'skills/python.png'
+        self.parent.save()
+
+        response = self.client.get(reverse('skills'))
+
+        self.assertContains(response, 'skills/python.png')
+
+    def test_a_card_shows_a_placeholder_without_an_image(self):
+        response = self.client.get(reverse('skills'))
+
+        self.assertContains(response, 'aspect-[16/9]')
+
+
+class SkillTreeValidationTests(TestCase):
+    def setUp(self):
+        Skill.objects.all().delete()
+
+    def test_a_skill_cannot_be_its_own_parent(self):
+        skill = Skill.objects.create(name='Python', start_date=date(2020, 1, 1))
+        skill.parent = skill
+
+        with self.assertRaises(ValidationError):
+            skill.clean()
+
+    def test_the_tree_is_only_two_levels_deep(self):
+        # A third level would need a recursive template for no content benefit.
+        main = Skill.objects.create(name='Python', start_date=date(2020, 1, 1))
+        sub = Skill.objects.create(name='Pandas', start_date=date(2020, 1, 1), parent=main)
+        deeper = Skill(name='groupby', start_date=date(2020, 1, 1), parent=sub)
+
+        with self.assertRaises(ValidationError):
+            deeper.clean()
+
+    def test_a_main_skill_is_always_valid(self):
+        Skill(name='Python', start_date=date(2020, 1, 1)).clean()
+
+
+class SkillRollupTests(TestCase):
+    """A project card shows the main skill behind each tag."""
+
+    def setUp(self):
+        Skill.objects.all().delete()
+        self.main = Skill.objects.create(name='Data Analysis', start_date=date(2020, 1, 1))
+        self.sub = Skill.objects.create(
+            name='Pandas', start_date=date(2020, 1, 1), parent=self.main,
+        )
+
+    def test_a_subskill_tag_rolls_up_to_its_main_skill(self):
+        project = Project.objects.create(name='P', link='https://example.invalid')
+        project.skills_used.set([self.sub])
+
+        self.assertEqual([s.name for s in project.display_skills()], ['Data Analysis'])
+
+    def test_a_main_skill_tag_is_shown_as_it_is(self):
+        project = Project.objects.create(name='P', link='https://example.invalid')
+        project.skills_used.set([self.main])
+
+        self.assertEqual([s.name for s in project.display_skills()], ['Data Analysis'])
+
+    def test_a_main_skill_appears_once_when_tagged_with_its_own_subskill(self):
+        project = Project.objects.create(name='P', link='https://example.invalid')
+        project.skills_used.set([self.main, self.sub])
+
+        self.assertEqual([s.name for s in project.display_skills()], ['Data Analysis'])
+
+    def test_the_card_shows_the_main_skill_not_the_subskill(self):
+        project = Project.objects.create(name='P', link='https://example.invalid')
+        project.skills_used.set([self.sub])
+
+        response = self.client.get(reverse('projects'))
+
+        self.assertContains(response, 'Data Analysis')
+        self.assertNotContains(response, 'Pandas')
+
+    def test_a_skill_created_by_a_rule_lands_under_its_parent(self):
+        # parent_skill_name is what stops a newly detected technology from
+        # appearing at the top level and needing to be re-parented by hand.
+        Skill.objects.create(name='Machine Learning', start_date=date(2020, 1, 1))
+        SkillSignal.objects.all().delete()
+        SkillSignal.objects.create(
+            kind='dependency', pattern='pytorch-lightning',
+            skill_name='PyTorch Lightning', parent_skill_name='Machine Learning',
+        )
+        router = github_router(
+            repos=[make_repo()],
+            tree_paths=['requirements.txt'],
+            manifests={'requirements.txt': 'pytorch-lightning\n'},
+        )
+        with patch('portfolio_app.github_sync.urllib.request.urlopen', side_effect=router):
+            sync_projects(username='armin2080')
+
+        created = Skill.objects.get(name='PyTorch Lightning')
+        self.assertEqual(created.parent.name, 'Machine Learning')
+        self.assertFalse(created.is_published)
+
+    def test_a_missing_parent_falls_back_to_the_top_level(self):
+        # A rule naming a parent that does not exist must not lose the skill.
+        SkillSignal.objects.all().delete()
+        SkillSignal.objects.create(
+            kind='dependency', pattern='fastapi',
+            skill_name='FastAPI', parent_skill_name='Nonexistent',
+        )
+        router = github_router(
+            repos=[make_repo()],
+            tree_paths=['requirements.txt'],
+            manifests={'requirements.txt': 'fastapi\n'},
+        )
+        with patch('portfolio_app.github_sync.urllib.request.urlopen', side_effect=router):
+            sync_projects(username='armin2080')
+
+        self.assertIsNone(Skill.objects.get(name='FastAPI').parent)

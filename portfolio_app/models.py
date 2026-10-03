@@ -59,6 +59,31 @@ class Skill(models.Model):
         choices=SkillType.choices,
         default=SkillType.TECHNICAL,
     )
+    parent = models.ForeignKey(
+        'self',
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name='subskills',
+        help_text=(
+            "Leave empty for a main skill, which gets its own card. Set a parent "
+            "to make this a sub-skill listed underneath it. A sub-skill cannot "
+            "itself have sub-skills."
+        ),
+    )
+    image = models.ImageField(
+        upload_to='skills/', blank=True, null=True,
+        help_text=(
+            "Main skills only. Shown at the top of the card; a placeholder "
+            "graphic is used until you upload one."
+        ),
+    )
+    display_order = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "Lower numbers come first on the skills page. Leave at 0 to order "
+            "by how long you have used the skill instead."
+        ),
+    )
     is_published = models.BooleanField(
         default=True,
         help_text=(
@@ -79,10 +104,47 @@ class Skill(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['start_date']
+        # display_order first so the site owner controls the page, with the
+        # start date as the fallback when nothing has been set.
+        ordering = ['display_order', 'start_date', 'name']
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_main_skill(self):
+        return self.parent_id is None
+
+    def clean(self):
+        """Keep the tree exactly two levels deep, and free of cycles.
+
+        The page renders a card per main skill with its sub-skills listed under
+        it. Allowing a third level would need a recursive template and a
+        breadcrumb, for which there is no content justification here.
+        """
+        super().clean()
+        if self.parent_id is None:
+            return
+        if self.pk and self.parent_id == self.pk:
+            raise ValidationError({'parent': 'A skill cannot be its own parent.'})
+        if self.parent.parent_id is not None:
+            raise ValidationError({
+                'parent': (
+                    f'"{self.parent.name}" is itself a sub-skill, so it cannot '
+                    'have sub-skills. Pick a main skill, or make this one a main '
+                    'skill instead.'
+                ),
+            })
+
+    def projects_including_subskills(self):
+        """Every project tagged with this skill or any of its sub-skills.
+
+        A card saying "used in 13 projects" should count the work tagged with
+        pandas when the card is Python's, otherwise adding detail to the tree
+        would make the main skills look less used than they are.
+        """
+        ids = {self.pk} | set(self.subskills.values_list('pk', flat=True))
+        return Project.objects.filter(skills_used__pk__in=ids).distinct()
 
 
 class SkillSignal(models.Model):
@@ -124,7 +186,16 @@ class SkillSignal(models.Model):
         max_length=100,
         help_text=(
             "The skill to attach, matched by name. Created (hidden) if no skill "
-            "has this name yet."
+            "has this name yet. Point this at a sub-skill (pandas, PyMC) to keep "
+            "the detail off the project cards, which roll up to the main skill."
+        ),
+    )
+    parent_skill_name = models.CharField(
+        max_length=100, blank=True,
+        help_text=(
+            "Only used when this rule has to create the skill. Names the main "
+            "skill the new sub-skill belongs under, so detection does not drop it "
+            "at the top level. Leave blank for a main skill."
         ),
     )
     note = models.CharField(
@@ -145,6 +216,11 @@ class SkillSignal(models.Model):
         ]
 
     def __str__(self):
+        if self.parent_skill_name:
+            return (
+                f'{self.get_kind_display()}: {self.pattern} \u2192 '
+                f'{self.parent_skill_name} \u203a {self.skill_name}'
+            )
         return f'{self.get_kind_display()}: {self.pattern} \u2192 {self.skill_name}'
 
 
@@ -273,6 +349,23 @@ class Project(models.Model):
 
     def __str__(self):
         return self.name
+
+    def display_skills(self):
+        """The skills to show on a project card, rolled up to main skills.
+
+        A tag can be as specific as the work warrants — pandas, PyMC, Tailwind —
+        but a card lists the *main* skill behind it. Cards read at a consistent
+        level of abstraction, and only the skills page shows the detail.
+
+        Returns a list, so it can be used directly in a template. The caller
+        should prefetch `skills_used` with `select_related('parent')` so this
+        costs no extra queries.
+        """
+        rolled = {}
+        for skill in self.skills_used.all():
+            main = skill.parent or skill
+            rolled.setdefault(main.pk, main)
+        return sorted(rolled.values(), key=lambda skill: skill.name)
 
 
 class Education(models.Model):
