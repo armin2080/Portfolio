@@ -291,6 +291,43 @@ The tree keeps both: `Python` on the card, `Jupyter Notebook`, `FastAPI` and
 > GITHUB_TOKEN=ghp_your_token_here
 > ```
 
+### Images
+
+Uploads are converted to **WebP** automatically, and shrunk so the longest edge
+is at most 1600px. You can upload whatever comes off your phone or out of a
+screenshot tool; there is no need to resize first.
+
+This matters more than it sounds. The skill banners were originally uploaded as
+2172x724 PNGs of about 1.6 MB each, so twelve of them was roughly 19 MB of images
+on one page. After conversion they are about 45 KB each — the same page is well
+under a megabyte.
+
+Two things happen on upload:
+
+- **Format.** WebP is around 30-50% smaller than JPEG at equal quality, and far
+  smaller than PNG for anything photographic.
+- **Size.** Anything larger than 1600px on its longest edge is scaled down. The
+  widest this site displays an image is a 475px skill banner, so 1600px still
+  covers a 3x screen with room to spare.
+
+EXIF metadata is dropped, which also removes any GPS coordinates from photos
+taken on a phone. Transparency is kept where the image has it.
+
+Images uploaded before this existed can be converted with:
+
+   ```bash
+   .venv/bin/python manage.py convert_images_to_webp --dry-run   # preview + savings
+   .venv/bin/python manage.py convert_images_to_webp             # convert
+   ```
+
+It walks `Profile.profile_picture`, `Skill.image` and `Project.image`, points the
+database at the new file and deletes the original. Files already in WebP are
+skipped, so re-running is harmless. `--keep-originals` leaves the old files on
+disk. Take a backup of `media/` first: restoring it is the only undo.
+
+Project and skill images are lazy-loaded, so a page with many cards only fetches
+the images you actually scroll to.
+
 ### Raspberry Pi deployment
 
 For a lightweight production setup, use the Gunicorn systemd deployment in
