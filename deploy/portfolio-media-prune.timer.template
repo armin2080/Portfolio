@@ -1,0 +1,16 @@
+[Unit]
+Description=Monthly media cleanup for the portfolio
+
+[Timer]
+# First of the month at 00:00 local time. Deliberately outside the 03:00-06:00
+# window in which portfolio-night-stop keeps the site down, so the run is not
+# cut short and a failure is easy to spot in the journal.
+#
+# The job is also guarded internally: files modified in the last
+# MEDIA_PRUNE_MIN_AGE_HOURS (default 24) are never deleted, so a fresh upload
+# whose database row is still being written cannot be caught by it.
+OnCalendar=monthly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

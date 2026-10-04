@@ -104,3 +104,26 @@ def find_orphans(root=None):
     referenced = referenced_files()
     on_disk = files_on_disk(root)
     return sorted(on_disk - referenced), sorted(referenced - on_disk)
+
+
+def age_in_hours(path, now=None):
+    """How long ago ``path`` was last modified, in hours.
+
+    Used to leave very recently written files alone. Django saves the file
+    *before* the database row that references it, so for a moment a brand-new
+    upload genuinely looks unreferenced. An automated cleanup running in that
+    moment would delete a file the site is about to point at.
+    """
+    import time
+
+    try:
+        modified = path.stat().st_mtime
+    except OSError:
+        # Cannot tell how old it is, so treat it as new and leave it alone.
+        return 0.0
+    return ((now or time.time()) - modified) / 3600
+
+
+def upload_grace_hours():
+    """The default grace period, from settings.MEDIA_PRUNE_MIN_AGE_HOURS."""
+    return int(getattr(settings, 'MEDIA_PRUNE_MIN_AGE_HOURS', 24))

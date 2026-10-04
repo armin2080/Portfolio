@@ -68,13 +68,26 @@ sed \
 sudo cp "$PROJECT_DIR/deploy/portfolio-github-sync.timer.template" \
     /etc/systemd/system/portfolio-github-sync.timer
 
+echo "Installing monthly media cleanup timer..."
+sed \
+    -e "s|__APP_USER__|$APP_USER|g" \
+    -e "s|__APP_GROUP__|$APP_GROUP|g" \
+    -e "s|__PROJECT_DIR__|$PROJECT_DIR|g" \
+    "$PROJECT_DIR/deploy/portfolio-media-prune.service.template" |
+    sudo tee /etc/systemd/system/portfolio-media-prune.service >/dev/null
+
+sudo cp "$PROJECT_DIR/deploy/portfolio-media-prune.timer.template" \
+    /etc/systemd/system/portfolio-media-prune.timer
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now portfolio.service
 sudo systemctl enable --now portfolio-purge.timer
 sudo systemctl enable --now portfolio-github-sync.timer
+sudo systemctl enable --now portfolio-media-prune.timer
 
 echo
 sudo systemctl --no-pager --full status portfolio.service
 echo
 echo "Installed. The Gunicorn portfolio service is enabled for every boot,"
-echo "and the statistics cleanup and GitHub project sync timers are active."
+echo "and the statistics cleanup, GitHub project sync and monthly media cleanup"
+echo "timers are active."

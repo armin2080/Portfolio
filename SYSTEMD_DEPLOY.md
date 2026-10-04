@@ -25,6 +25,8 @@ The script:
   `ANALYTICS_RETENTION_DAYS` once a day;
 - installs `portfolio-github-sync.timer`, which imports new public GitHub
   repositories as projects once a day;
+- installs `portfolio-media-prune.timer`, which deletes unreferenced media once
+  a month;
 - enables Portfolio to start after every reboot.
 
 The statistics cleanup can also be run by hand:
@@ -73,6 +75,35 @@ without any manual step. It runs after the nightly downtime window
   project does not help: the next run would import it again.)
 - The first run imports every public repository at once. Preview it with
   `sync_github_projects --dry-run` before letting the timer do it.
+
+## Media cleanup
+
+`portfolio-media-prune.timer` runs on the first of each month at 00:00 and
+deletes media files that nothing in the database references. Replacing an image
+in the admin leaves the previous file on disk — Django never removes it — so
+`media/` would otherwise grow without limit.
+
+The run is guarded, because deleting the wrong file is not recoverable from the
+database:
+
+- Files modified in the last `MEDIA_PRUNE_MIN_AGE_HOURS` (default 24, set in
+  `.env`) are never deleted. Django writes the file *before* the row that points
+  at it, so a brand-new upload briefly looks unreferenced.
+- If the database references no files at all while files exist on disk, the
+  command refuses to delete. That means the wrong database or `MEDIA_ROOT`, not a
+  directory of rubbish.
+- References are discovered from every `FileField` of every installed model, not
+  a hand-written list.
+
+Check what it did, and what it would do next time:
+
+```bash
+journalctl -u portfolio-media-prune -n 50 --no-pager
+.venv/bin/python manage.py prune_media            # report only, no deletion
+```
+
+Restoring is only possible from a backup, so make sure `media/` is included in
+yours (see below).
 
 ## Backups
 

@@ -290,6 +290,12 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 
+# `manage.py prune_media` deletes media files nothing references. Files modified
+# within this many hours are left alone, because Django writes the file just
+# before the database row that points at it: a new upload momentarily looks
+# unreferenced, and an automated run must not delete one.
+MEDIA_PRUNE_MIN_AGE_HOURS = int(os.environ.get('MEDIA_PRUNE_MIN_AGE_HOURS', '24'))
+
 
 # Security settings for production (behind Cloudflare / a TLS-terminating proxy)
 if not DEBUG:

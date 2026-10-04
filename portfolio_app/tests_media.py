@@ -6,8 +6,10 @@ the database, so the guards are the feature.
 """
 
 from io import BytesIO, StringIO
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import time
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
@@ -17,6 +19,7 @@ from django.test import TestCase, override_settings
 from PIL import Image
 
 from .media import (
+    age_in_hours,
     all_file_fields,
     files_on_disk,
     find_orphans,
@@ -50,10 +53,19 @@ class MediaTestCase(TestCase):
         Skill.objects.all().delete()
         Profile.objects.all().delete()
 
-    def write(self, relative, content=b'x'):
+    def write(self, relative, content=b'x', age_hours=48):
+        """Create a file, backdated so it is past the grace period by default.
+
+        A file written just now would be held back by the guard against deleting
+        an upload whose database row is not written yet, which is not what these
+        tests are about.
+        """
         path = self.media_root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
+        if age_hours:
+            old = time.time() - age_hours * 3600
+            os.utime(path, (old, old))
         return path
 
     def run_command(self, *args):
@@ -323,3 +335,102 @@ class HumanSizeTests(TestCase):
         self.assertEqual(human_size(512), '512 B')
         self.assertEqual(human_size(2048), '2.0 KB')
         self.assertEqual(human_size(5 * 1024 * 1024), '5.0 MB')
+
+
+class AgeTests(MediaTestCase):
+    def test_a_fresh_file_is_zero_hours_old(self):
+        path = self.write('a.txt', age_hours=0)
+
+        self.assertLess(age_in_hours(path), 0.1)
+
+    def test_an_old_file_reports_its_age(self):
+        path = self.write('a.txt', age_hours=48)
+
+        self.assertAlmostEqual(age_in_hours(path), 48, delta=0.5)
+
+    def test_a_missing_file_reports_zero_rather_than_raising(self):
+        # Treated as new, so an unstattable file is left alone.
+        self.assertEqual(age_in_hours(self.media_root / 'nope.txt'), 0.0)
+
+
+# ---------------------------------------------------------------------------
+# The grace period
+# ---------------------------------------------------------------------------
+class GracePeriodTests(MediaTestCase):
+    """A just-uploaded file must survive, because its database row may be pending.
+
+    Django saves the file before the row that references it, so for a moment a
+    brand-new upload genuinely looks unreferenced. An automated monthly run must
+    not delete it in that window.
+    """
+
+    def setUp(self):
+        super().setUp()
+        skill = Skill.objects.create(
+            name='Python', start_date='2020-01-01', image=upload('keep.png'),
+        )
+        skill.refresh_from_db()
+        self.keep = self.media_root / skill.image.name
+
+    def run_command(self, *args):
+        out = StringIO()
+        call_command('prune_media', *args, stdout=out)
+        return out.getvalue()
+
+    def test_a_file_newer_than_the_grace_period_is_not_deleted(self):
+        fresh = self.write('projects/just-uploaded.jpg', age_hours=0)
+
+        out = self.run_command('--delete')
+
+        self.assertTrue(fresh.exists())
+        self.assertIn('newer than the grace period', out)
+
+    def test_an_old_orphan_is_still_deleted(self):
+        old = self.write('projects/long-gone.jpg', age_hours=48)
+
+        self.run_command('--delete')
+
+        self.assertFalse(old.exists())
+
+    def test_a_twenty_three_hour_old_file_survives_the_default(self):
+        recent = self.write('projects/recent.jpg', age_hours=23)
+
+        self.run_command('--delete')
+
+        self.assertTrue(recent.exists())
+
+    def test_the_default_can_be_overridden(self):
+        fresh = self.write('projects/fresh.jpg', age_hours=2)
+
+        self.run_command('--delete', '--min-age-hours', '1')
+
+        self.assertFalse(fresh.exists())
+
+    def test_zero_disables_the_grace_period(self):
+        fresh = self.write('projects/fresh.jpg', age_hours=0)
+
+        self.run_command('--delete', '--min-age-hours', '0')
+
+        self.assertFalse(fresh.exists())
+
+    def test_the_grace_period_is_reported(self):
+        self.write('projects/fresh.jpg', age_hours=0)
+
+        out = self.run_command()
+
+        self.assertIn('grace period: 24h', out)
+
+    def test_a_held_back_file_is_reported_with_its_age(self):
+        self.write('projects/fresh.jpg', age_hours=0)
+
+        out = self.run_command()
+
+        self.assertIn('projects/fresh.jpg', out)
+
+    def test_nothing_to_do_when_only_new_files_are_unreferenced(self):
+        self.write('projects/fresh.jpg', age_hours=0)
+
+        out = self.run_command()
+
+        self.assertIn('Nothing to delete', out)
+        self.assertIn('newer than the grace period', out)
