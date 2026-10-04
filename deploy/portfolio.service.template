@@ -22,7 +22,11 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/portfolio
+# __PROJECT_DIR__ is required as well as the data directory: the SQLite database
+# lives in the project directory (there is no DB_NAME override), so the app and
+# the migrate/collectstatic steps above must be able to write to it and to its
+# journal. Omitting this makes the service fail on a read-only filesystem.
+ReadWritePaths=/var/lib/portfolio __PROJECT_DIR__
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 

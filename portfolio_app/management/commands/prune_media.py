@@ -28,10 +28,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from portfolio_app.media import (
+    age_in_hours,
     files_on_disk,
     find_orphans,
     human_size,
     referenced_files,
+    upload_grace_hours,
 )
 
 
@@ -52,17 +54,42 @@ class Command(BaseCommand):
             action='store_true',
             help='Also remove directories left empty after deleting files.',
         )
+        parser.add_argument(
+            '--min-age-hours',
+            type=int,
+            default=None,
+            help=(
+                'Leave files modified more recently than this alone (default '
+                f'{upload_grace_hours()}h, settings.MEDIA_PRUNE_MIN_AGE_HOURS). '
+                'Django writes the file before the row that references it, so a '
+                'brand-new upload briefly looks unreferenced; this stops an '
+                'automated run from deleting one. Use 0 to disable.'
+            ),
+        )
 
     def handle(self, *args, **options):
         do_delete = options['delete']
         root = Path(settings.MEDIA_ROOT)
+        grace_hours = (
+            upload_grace_hours() if options['min_age_hours'] is None
+            else options['min_age_hours']
+        )
 
         if not root.exists():
             raise CommandError(f'MEDIA_ROOT does not exist: {root}')
 
         on_disk = files_on_disk(root)
         referenced = referenced_files()
-        orphans, missing = find_orphans(root)
+        candidates, missing = find_orphans(root)
+
+        # Hold back anything written too recently. Django saves the file before
+        # the row that references it, so an upload in flight looks unreferenced.
+        orphans, too_new = [], []
+        for name in candidates:
+            (too_new if age_in_hours(root / name) < grace_hours else orphans).append(name)
+        orphans.sort()
+        too_new.sort()
+
         total_bytes = sum((root / name).stat().st_size for name in orphans)
 
         self.stdout.write(f'MEDIA_ROOT: {root}')
@@ -70,6 +97,16 @@ class Command(BaseCommand):
             f'  {len(on_disk)} file(s) on disk, '
             f'{len(referenced & on_disk)} of them referenced'
         )
+        self.stdout.write(f'  grace period: {grace_hours}h'
+                          + ('' if grace_hours else '  (disabled)'))
+
+        if too_new:
+            self.stdout.write(
+                f'\n{len(too_new)} unreferenced file(s) are newer than the grace '
+                'period and were left alone:'
+            )
+            for name in too_new:
+                self.stdout.write(f'  . {name}  ({age_in_hours(root / name):.1f}h old)')
 
         if missing:
             # Reported, never "fixed": a missing file is a database problem, and
@@ -81,7 +118,15 @@ class Command(BaseCommand):
                 self.stdout.write(f'  ? {name}')
 
         if not orphans:
-            self.stdout.write(self.style.SUCCESS('\nNo unreferenced files. Nothing to do.'))
+            if too_new:
+                self.stdout.write(self.style.SUCCESS(
+                    '\nNothing to delete: the only unreferenced file(s) are newer '
+                    'than the grace period.'
+                ))
+            else:
+                self.stdout.write(self.style.SUCCESS(
+                    '\nNo unreferenced files. Nothing to do.'
+                ))
             return
 
         # A database that references no files at all, while files sit on disk, is

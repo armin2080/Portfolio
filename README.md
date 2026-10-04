@@ -351,6 +351,15 @@ because a false positive here destroys content:
 
 References with no file (the opposite problem) are reported but never "fixed".
 
+A third guard matters when the command runs unattended: files modified in the
+last `MEDIA_PRUNE_MIN_AGE_HOURS` (default 24) are never deleted. Django writes the
+file *before* the database row that points at it, so a brand-new upload briefly
+looks unreferenced; without the grace period a scheduled run could delete it.
+Override with `--min-age-hours`, or set it to 0 to disable.
+
+On a server, `portfolio-media-prune.timer` runs this monthly — see
+[SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md).
+
 ### Raspberry Pi deployment
 
 For a lightweight production setup, use the Gunicorn systemd deployment in

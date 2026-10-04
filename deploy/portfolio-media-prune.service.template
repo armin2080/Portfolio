@@ -1,0 +1,21 @@
+[Unit]
+Description=Delete portfolio media files that nothing references
+After=portfolio.service
+
+[Service]
+Type=oneshot
+User=__APP_USER__
+Group=__APP_GROUP__
+WorkingDirectory=__PROJECT_DIR__
+EnvironmentFile=__PROJECT_DIR__/.env
+ExecStart=__PROJECT_DIR__/.venv/bin/python manage.py prune_media --delete --prune-empty-dirs
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# __PROJECT_DIR__ is needed even though this command only reads the database:
+# the SQLite file lives in the project directory, and SQLite needs write access
+# to the containing directory to roll back a journal left by a crash. Without it
+# the run fails on a read-only filesystem.
+# /var/lib/portfolio is where the media being deleted lives.
+ReadWritePaths=/var/lib/portfolio __PROJECT_DIR__

@@ -13,4 +13,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/portfolio
+# __PROJECT_DIR__ is required: this command writes to the SQLite database, which
+# lives in the project directory, and SQLite needs write access to the directory
+# for its journal even to roll one back when reading.
+ReadWritePaths=/var/lib/portfolio __PROJECT_DIR__
