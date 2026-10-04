@@ -19,21 +19,8 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-from portfolio_app.images import (
-    WEBP_EXTENSION,
-    convert_to_webp,
-    image_fields,
-    webp_name,
-)
-
-
-def human_size(num_bytes):
-    """'1.6 MB' — sizes here span four orders of magnitude, so bytes are unhelpful."""
-    size = float(num_bytes)
-    for unit in ('B', 'KB', 'MB', 'GB'):
-        if size < 1024 or unit == 'GB':
-            return f'{size:,.0f} {unit}' if unit == 'B' else f'{size:,.1f} {unit}'
-        size /= 1024
+from portfolio_app.images import WEBP_EXTENSION, convert_to_webp, webp_name
+from portfolio_app.media import human_size, image_fields
 
 
 class Command(BaseCommand):

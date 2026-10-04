@@ -143,18 +143,3 @@ def convert_uploaded_image_to_webp(instance, field_name, **options):
     # upload_to, so including the folder here would nest it twice.
     field_file.save(f'{Path(name).stem}{WEBP_EXTENSION}', converted, save=False)
     return True
-
-
-def image_fields():
-    """Every ``(model, field_name)`` the site stores an image in.
-
-    Imported inside the function to avoid a circular import, because the models
-    import this module for their save hooks.
-    """
-    from .models import Profile, Project, Skill
-
-    return [
-        (Profile, 'profile_picture'),
-        (Skill, 'image'),
-        (Project, 'image'),
-    ]

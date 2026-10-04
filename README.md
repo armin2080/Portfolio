@@ -328,6 +328,29 @@ disk. Take a backup of `media/` first: restoring it is the only undo.
 Project and skill images are lazy-loaded, so a page with many cards only fetches
 the images you actually scroll to.
 
+#### Removing files nothing uses
+
+Replacing an image in the admin leaves the old file on disk, because Django never
+removes it. Those files are still reachable by URL but belong to nothing:
+
+   ```bash
+   .venv/bin/python manage.py prune_media                      # report only
+   .venv/bin/python manage.py prune_media --delete              # remove them
+   .venv/bin/python manage.py prune_media --delete --prune-empty-dirs
+   ```
+
+**Reporting is the default; deleting must be asked for.** Two guards exist
+because a false positive here destroys content:
+
+- References are discovered from **every `FileField` in every installed app**, not
+  a hand-written list. A hand-written list of image fields once reported the live
+  resume PDFs as unreferenced.
+- If the database references *no* files at all while files exist on disk, the
+  command refuses to delete. That combination means the wrong database or
+  `MEDIA_ROOT`, and treating it as "everything is unused" would empty `media/`.
+
+References with no file (the opposite problem) are reported but never "fixed".
+
 ### Raspberry Pi deployment
 
 For a lightweight production setup, use the Gunicorn systemd deployment in

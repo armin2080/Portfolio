@@ -16,10 +16,10 @@ from .images import (
     MAX_DIMENSION,
     convert_to_webp,
     convert_uploaded_image_to_webp,
-    image_fields,
     is_image_name,
     webp_name,
 )
+from .media import image_fields
 from .models import Profile, Project, Skill
 
 
