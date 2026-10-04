@@ -1,14 +1,18 @@
 """Tests for the admin-editable theming system."""
 
 from datetime import date
+from io import BytesIO
+from tempfile import TemporaryDirectory
 
 from django.conf import settings
 from django.contrib import admin as django_admin
 from django.contrib.staticfiles import finders
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from PIL import Image
 
 from .admin import HexColorInput, ThemeAdminForm
 from .context_processors import profile_context
@@ -19,10 +23,19 @@ from .models import (
     FONT_STACKS,
     ROLE_HELP,
     Theme,
+    Profile,
+    Project,
     Skill,
     hex_to_rgb_channels,
     normalize_hex_color,
 )
+
+
+def _tiny_png():
+    """A 1x1 PNG, enough to satisfy an ImageField."""
+    buffer = BytesIO()
+    Image.new('RGB', (1, 1), 'white').save(buffer, format='PNG')
+    return buffer.getvalue()
 
 LOCMEM_CACHE = {
     "default": {
@@ -235,12 +248,32 @@ class ThemeRenderingTests(TestCase):
     def test_no_template_syntax_leaks_into_the_rendered_page(self):
         # Guards a real regression: Django's {# #} comment shorthand is
         # single-line only, so a multi-line one is emitted as visible text.
+        #
+        # Image records are created deliberately. The comments that leaked both
+        # sat inside `{% if profile.profile_picture %}` and
+        # `{% if project.image %}` blocks, so without an image the page never
+        # reached them and this test passed while the site showed the text.
         Theme.objects.create(name='Nord', is_active=True)
-        for name in ('index', 'skills', 'projects', 'resume', 'contact', 'privacy'):
-            with self.subTest(page=name):
-                content = self.client.get(reverse(name)).content.decode()
-                for marker in ('{#', '{%', '{{'):
-                    self.assertNotIn(marker, content)
+        with TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                profile = Profile.objects.first() or Profile.objects.create()
+                profile.profile_picture = SimpleUploadedFile(
+                    'hero.png', _tiny_png(), content_type='image/png',
+                )
+                profile.save()
+                project = Project.objects.create(
+                    name='Leak check', link='https://example.invalid',
+                )
+                project.image = SimpleUploadedFile(
+                    'shot.png', _tiny_png(), content_type='image/png',
+                )
+                project.save()
+
+                for name in ('index', 'skills', 'projects', 'resume', 'contact', 'privacy'):
+                    with self.subTest(page=name):
+                        content = self.client.get(reverse(name)).content.decode()
+                        for marker in ('{#', '{%', '{{'):
+                            self.assertNotIn(marker, content)
 
     def test_site_renders_without_any_theme(self):
         response = self.client.get(reverse('index'))

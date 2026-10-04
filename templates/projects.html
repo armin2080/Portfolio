@@ -32,8 +32,10 @@
             <div class="project-card bg-surface rounded-lg border border-border overflow-hidden shadow-sm">
                 <div class="h-40 md:h-48 relative overflow-hidden">
                     {% if project.image %}
-                    {# Lazy: this page can hold many cards, and the browser was
-                       fetching every image before the visitor scrolled. #}
+                    {% comment %}
+                    Lazy: this page can hold many cards, and the browser was
+                    fetching every image before the visitor scrolled.
+                    {% endcomment %}
                     <img src="{{ project.image.url }}" alt="{{ project.name }}"
                          loading="lazy" decoding="async"
                          class="w-full h-full object-cover transition-transform duration-300 hover:scale-110">
