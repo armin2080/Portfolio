@@ -450,6 +450,7 @@ class StaticAssetTests(TestCase):
 
     def _static_references(self):
         import re
+
         pattern = re.compile(r"{%\s*static\s+'([^']+)'\s*%}")
         templates_dir = settings.BASE_DIR / 'templates'
         for path in sorted(templates_dir.glob('*.html')):
@@ -470,6 +471,102 @@ class StaticAssetTests(TestCase):
         # could keep serving a stale stylesheet after a deploy.
         backend = settings.STORAGES['staticfiles']['BACKEND']
         self.assertIn('ManifestStaticFilesStorage', backend)
+
+
+# ---------------------------------------------------------------------------
+# Template syntax
+# ---------------------------------------------------------------------------
+class TemplateSyntaxTests(SimpleTestCase):
+    """Template comments must never reach the page as visible text.
+
+    Django's ``{# #}`` shorthand is single-line only. A multi-line one is not a
+    comment at all — the text is emitted literally, which is what put
+    "{# The hero image: deliberately eager ... #}" on the live site next to the
+    profile picture and every project card.
+
+    This scans the template *sources*, so it does not depend on what data the
+    test happens to have. That matters: those two comments sat inside
+    ``{% if profile.profile_picture %}`` and ``{% if project.image %}`` blocks, so
+    a rendered-page check with no images in the database never reached them and
+    passed while production leaked the text. Checking the source cannot be
+    defeated that way.
+    """
+
+    # Regions where template syntax is intentionally inert and may contain
+    # characters that would otherwise look like a broken comment.
+    NON_RENDERING_BLOCKS = ('comment', 'verbatim')
+
+    def _templates(self):
+        return sorted((settings.BASE_DIR / 'templates').glob('*.html'))
+
+    def _without_non_rendering_blocks(self, text):
+        import re
+
+        for tag in self.NON_RENDERING_BLOCKS:
+            text = re.sub(
+                r'{%\s*' + tag + r'\s*%}.*?{%\s*end' + tag + r'\s*%}',
+                '', text, flags=re.S,
+            )
+        return text
+
+    def test_no_multiline_hash_comments(self):
+        problems = []
+        for path in self._templates():
+            text = self._without_non_rendering_blocks(path.read_text())
+            for number, line in enumerate(text.splitlines(), start=1):
+                if '{#' not in line:
+                    continue
+                # Closed on the same line, so it is a real (working) comment.
+                if '#}' in line.split('{#', 1)[1]:
+                    continue
+                problems.append(f'{path.name}:{number}: {line.strip()}')
+
+        detail = ''
+        if problems:
+            detail = (
+                '\nThese {# #} comments are multi-line, so Django renders them as '
+                'visible page text. Use {% comment %} instead:\n  '
+                + '\n  '.join(problems)
+            )
+        self.assertEqual(problems, [], detail)
+
+    def test_non_rendering_blocks_are_closed(self):
+        # A stray {% comment %} without {% endcomment %} swallows the rest of the
+        # template, which is the same class of silent mistake.
+        #
+        # Well-formed blocks are removed first and anything left over is the
+        # error. Counting the tags instead would be wrong: a comment is allowed
+        # to *mention* the tag, which base.html does when explaining this very
+        # trap, and that made a naive count unbalanced.
+        import re
+
+        for path in self._templates():
+            text = path.read_text()
+            with self.subTest(template=path.name):
+                for tag in self.NON_RENDERING_BLOCKS:
+                    block = re.compile(
+                        r'{%\s*' + tag + r'\s*%}.*?{%\s*end' + tag + r'\s*%}',
+                        re.S,
+                    )
+                    leftover = block.sub('', text)
+                    self.assertNotIn(
+                        '{% ' + tag, leftover,
+                        f'{path.name}: a {{% {tag} %}} block is never closed '
+                        f'(or an {{% end{tag} %}} is missing)',
+                    )
+                    self.assertNotIn(
+                        '{% end' + tag, leftover,
+                        f'{path.name}: an unmatched {{% end{tag} %}}',
+                    )
+
+    def test_every_template_parses(self):
+        # Compiling catches unclosed tags and typos that would otherwise only
+        # show up as a 500 on the live site.
+        from django.template.loader import get_template
+
+        for path in self._templates():
+            with self.subTest(template=path.name):
+                get_template(path.name)
 
 
 # ---------------------------------------------------------------------------
