@@ -6,8 +6,35 @@ from django.db import models
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 
+from .images import convert_uploaded_image_to_webp
 
-class Profile(models.Model):
+
+class WebPImageMixin:
+    """Convert any newly uploaded image to WebP just before it is stored.
+
+    Subclasses name their image fields in ``WEBP_IMAGE_FIELDS``. Doing this here
+    rather than in a signal keeps the behaviour next to the field, and means every
+    write path — the admin, the shell, a data migration — converts without each
+    of them having to remember to.
+    """
+
+    WEBP_IMAGE_FIELDS = ()
+
+    def save(self, *args, **kwargs):
+        converted = [
+            field_name for field_name in self.WEBP_IMAGE_FIELDS
+            if convert_uploaded_image_to_webp(self, field_name)
+        ]
+        if converted and kwargs.get('update_fields') is not None:
+            # Without this the file would be written to storage but the new name
+            # left out of the UPDATE, orphaning it.
+            kwargs['update_fields'] = set(kwargs['update_fields']) | set(converted)
+        return super().save(*args, **kwargs)
+
+
+class Profile(WebPImageMixin, models.Model):
+    WEBP_IMAGE_FIELDS = ('profile_picture',)
+
     name = models.CharField(max_length=100, default="Armin")
     title = models.CharField(max_length=200, default="Data Scientist & Developer")
     bio = models.TextField(default="I transform complex data into actionable insights and build intelligent solutions.")
@@ -46,7 +73,9 @@ class Profile(models.Model):
         return super().save(*args, **kwargs)
 
 
-class Skill(models.Model):
+class Skill(WebPImageMixin, models.Model):
+    WEBP_IMAGE_FIELDS = ('image',)
+
     class SkillType(models.TextChoices):
         TECHNICAL = 'Technical', 'Technical'
         SOFT = 'Soft', 'Soft'
@@ -275,7 +304,9 @@ class Category(models.Model):
         return self.name
 
 
-class Project(models.Model):
+class Project(WebPImageMixin, models.Model):
+    WEBP_IMAGE_FIELDS = ('image',)
+
     name = models.CharField(max_length=200)
     description = models.TextField(
         blank=True,

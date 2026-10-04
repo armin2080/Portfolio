@@ -18,7 +18,11 @@
                     <div
                         class="relative z-10 w-20 h-20 md:w-56 md:h-56 rounded-full overflow-hidden border-2 border-accent shadow-sm profile-image">
                         {% if profile and profile.profile_picture %}
-                            <img src="{{ profile.profile_picture.url }}" alt="Profile Picture" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
+                            {# The hero image: deliberately eager, since lazy loading
+                               it here would delay the first meaningful paint. #}
+                            <img src="{{ profile.profile_picture.url }}" alt="Profile Picture"
+                                 fetchpriority="high"
+                                 class="w-full h-full object-cover transition-transform duration-300 hover:scale-105">
                         {% else %}
                             <div class="w-full h-full bg-primary flex items-center justify-center">
                                 <span class="text-5xl text-accent font-bold">{{ profile.name|first|default:'A' }}</span>
@@ -147,7 +151,9 @@
             <div class="project-card bg-surface rounded-lg border border-border overflow-hidden shadow-sm">
                 <div class="h-40 md:h-48 relative overflow-hidden">
                     {% if project.image %}
+                    {# Lazy: only the first card is likely to be on screen. #}
                     <img src="{{ project.image.url }}" alt="{{ project.name }}"
+                         loading="lazy" decoding="async"
                          class="w-full h-full object-cover transition-transform duration-300 hover:scale-110">
                     {% else %}
                     <div class="w-full h-full bg-primary border-b border-border flex items-center justify-center">
