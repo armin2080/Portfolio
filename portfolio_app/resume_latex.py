@@ -293,16 +293,40 @@ class ResumeOptions:
     include_languages: bool = True
 
 
-def _select(queryset, ids, limit):
+def _select(queryset, ids, limit, *, field=None):
     """One section's rows: an explicit choice, or the site's own priority.
 
     The queryset supplies the order (newest first, or the admin's display
     order), and the cap is what keeps the CV to a single page no matter what is
     selected. The generator page states the caps, so a selection that exceeds one
     is trimmed visibly rather than silently.
+
+    ``field`` names the section, and is only used to apply
+    :data:`_PREFER_DESCRIBED` to the *default* selection. An explicit choice is
+    always honoured as given.
     """
-    rows = queryset if ids is None else queryset.filter(pk__in=ids)
-    return list(rows[:limit])
+    if ids is not None:
+        return list(queryset.filter(pk__in=ids)[:limit])
+
+    rows = list(queryset)
+    if field in _PREFER_DESCRIBED:
+        describable = [row for row in rows if row.description.strip()]
+        rest = [row for row in rows if not row.description.strip()]
+        # Order inside each group is untouched, so this is still newest-first;
+        # it just stops a bare name taking a slot from a project that can be
+        # explained.
+        rows = describable + rest
+    return rows[:limit]
+
+
+# Sections whose default selection prefers rows that can actually be described.
+#
+# A work entry with no bullets still reads fine — a role and its dates say
+# something on their own — but a project with no bullets prints a name with
+# nothing under it, which reads as an unfinished CV. Nearly every project on
+# this site has a description, so preferring those costs nothing and produces a
+# visibly better page. An explicit selection is never reordered.
+_PREFER_DESCRIBED = frozenset({'projects'})
 
 
 # The selectable rows, one function per section. The generator's form uses these
@@ -350,7 +374,10 @@ def default_selection():
     the checkboxes start in the right state too.
     """
     selection = {
-        field: [row.pk for row in _select(queryset(), None, getattr(settings, cap))]
+        field: [
+            row.pk
+            for row in _select(queryset(), None, getattr(settings, cap), field=field)
+        ]
         for field, (queryset, cap) in SELECTABLE.items()
     }
     selection['include_summary'] = True
@@ -368,6 +395,7 @@ def _experience_entries(options):
         selectable_experience(),
         options.experience_ids,
         settings.RESUME_MAX_EXPERIENCE,
+        field='experiences',
     )
     return [
         {
@@ -387,7 +415,10 @@ def _experience_entries(options):
 
 def _education_entries(options):
     rows = _select(
-        selectable_education(), options.education_ids, settings.RESUME_MAX_EDUCATION,
+        selectable_education(),
+        options.education_ids,
+        settings.RESUME_MAX_EDUCATION,
+        field='educations',
     )
     return [
         {
@@ -413,6 +444,7 @@ def _project_entries(options):
         selectable_projects(),
         options.project_ids,
         settings.RESUME_MAX_PROJECTS,
+        field='projects',
     )
     return [
         {
@@ -448,6 +480,7 @@ def _skill_rows(options):
         selectable_skills(),
         options.skill_ids,
         settings.RESUME_MAX_SKILLS,
+        field='skills',
     )
     subskills_by_parent = {}
     if main_skills:
@@ -488,6 +521,7 @@ def _certificate_entries(options):
         selectable_certificates(),
         options.certificate_ids,
         settings.RESUME_MAX_CERTIFICATES,
+        field='certificates',
     )
     return [
         {

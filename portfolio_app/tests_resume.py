@@ -874,6 +874,57 @@ class ResumeOptionsTests(TestCase):
             entry = resume_latex.build_resume_context()['projects'][0]
         self.assertEqual(entry['technologies'].count(','), 1)
 
+    def test_the_default_project_selection_prefers_describable_projects(self):
+        # A project with no description prints as a heading with nothing under it
+        # — a name on a CV that reads as unfinished. Nearly every project on this
+        # site has one, so the default skips the bare names.
+        Project.objects.create(name='Bare', link='https://example.com/b', date=date(2025, 1, 1))
+        Project.objects.create(name='Explained', link='https://example.com/e',
+                               description='Does something useful.', date=date(2024, 1, 1))
+        Project.objects.create(name='Also bare', link='https://example.com/ab',
+                               date=date(2023, 1, 1))
+        with override_settings(RESUME_MAX_PROJECTS=1):
+            entries = resume_latex.build_resume_context()['projects']
+        self.assertEqual([entry['name'] for entry in entries], ['Explained'])
+
+    def test_whitespace_only_description_counts_as_no_description(self):
+        Project.objects.create(name='Blank', link='https://example.com/1',
+                               description='   \n  ', date=date(2025, 1, 1))
+        Project.objects.create(name='Real', link='https://example.com/2',
+                               description='Actual text.', date=date(2024, 1, 1))
+        with override_settings(RESUME_MAX_PROJECTS=1):
+            entries = resume_latex.build_resume_context()['projects']
+        self.assertEqual([entry['name'] for entry in entries], ['Real'])
+
+    def test_an_explicit_project_selection_is_not_reordered(self):
+        # The preference is for the default only: if the owner deliberately picks
+        # a project with no description, they get it.
+        bare = Project.objects.create(name='Bare', link='https://example.com/b',
+                                      date=date(2025, 1, 1))
+        Project.objects.create(name='Explained', link='https://example.com/e',
+                               description='Does something useful.', date=date(2024, 1, 1))
+        context = resume_latex.build_resume_context(
+            resume_latex.ResumeOptions(project_ids=(bare.pk,))
+        )
+        self.assertEqual([entry['name'] for entry in context['projects']], ['Bare'])
+
+    def test_the_form_preselects_exactly_the_default_cv(self):
+        # The generator pre-ticks `default_selection()`, so it must agree with the
+        # document the plain download button produces. This is the invariant that
+        # broke when the project preference was added in only one of the two
+        # places, which is why it is asserted rather than assumed.
+        Project.objects.create(name='Bare', link='https://example.com/b', date=date(2026, 1, 1))
+        Project.objects.create(name='Explained', link='https://example.com/e',
+                               description='Does something useful.', date=date(2025, 1, 1))
+        defaults = resume_latex.default_selection()
+        shown = [
+            entry['name'] for entry in resume_latex.build_resume_context()['projects']
+        ]
+        preselected = [
+            Project.objects.get(pk=pk).name for pk in defaults['projects']
+        ]
+        self.assertEqual(preselected, shown)
+
     def test_the_default_selection_matches_what_the_default_cv_shows(self):
         # The generator pre-ticks these, so they must agree with the document the
         # plain download button produces — otherwise the page would open showing
