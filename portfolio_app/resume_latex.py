@@ -176,9 +176,12 @@ def _contact_entries(profile):
     """The header contact line, as (label, hyperlink) pairs.
 
     An entry with no URL is rendered as plain text — the location and the phone
-    number — which is why this returns pairs rather than a single string. A
-    *link* with no URL is left out entirely: a bare "LinkedIn" with nothing
-    behind it is worse than not mentioning it.
+    number — which is why this returns pairs rather than a single string.
+
+    An entry needs *both* a label and (for a link) a URL. Getting that wrong is
+    easy and invisible: ``f'mailto:{profile.email}'`` is the truthy string
+    'mailto:' when there is no email, which produced an entry with an empty
+    label and left a stray "|" in the header.
     """
     entries = []
 
@@ -187,7 +190,7 @@ def _contact_entries(profile):
             entries.append({'label': latex_escape(value), 'url': ''})
 
     def add_link(label, url):
-        if url:
+        if label and url:
             entries.append({
                 'label': latex_escape(label),
                 'url': latex_escape_url(url),
@@ -195,7 +198,7 @@ def _contact_entries(profile):
 
     if profile:
         add_text(profile.location)
-        add_link(profile.email, f'mailto:{profile.email}')
+        add_link(profile.email, f'mailto:{profile.email}' if profile.email else '')
         add_text(profile.phone)
         add_link('LinkedIn', profile.linkedin_url)
         add_link('GitHub', profile.github_url)
@@ -288,13 +291,14 @@ def _skill_keywords(rows):
 
 
 def _certificate_entries():
+    """The most recent certificates, newest first (see ``Certificate.Meta``)."""
     return [
         {
             'name': latex_escape(certificate.name),
             'institution': latex_escape(certificate.institution),
             'year': certificate.issue_date.year,
         }
-        for certificate in Certificate.objects.all()
+        for certificate in Certificate.objects.all()[: settings.RESUME_MAX_CERTIFICATES]
     ]
 
 

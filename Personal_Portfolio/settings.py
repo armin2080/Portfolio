@@ -264,6 +264,11 @@ RESUME_LATEX_CACHE_DIR = os.environ.get('RESUME_LATEX_CACHE_DIR', '')
 # projects page is the place to see everything.
 RESUME_MAX_PROJECTS = int(os.environ.get('RESUME_MAX_PROJECTS', '4'))
 
+# How many of the most recent certificates the CV lists. This site has several
+# dozen, and listing every one turns the CV into an appendix; the newest are the
+# ones a reader cares about.
+RESUME_MAX_CERTIFICATES = int(os.environ.get('RESUME_MAX_CERTIFICATES', '10'))
+
 
 # GitHub project sync (see portfolio_app/github_sync.py)
 # Public repositories are imported as projects by `manage.py sync_github_projects`,

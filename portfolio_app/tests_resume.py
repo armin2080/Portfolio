@@ -198,6 +198,17 @@ class ResumeContextTests(TestCase):
         self.assertEqual([entry['label'] for entry in context['contact']], ['Portfolio'])
         self.assertIn(r'\end{document}', resume_latex.build_latex_source())
 
+    def test_empty_contact_fields_leave_no_stray_separators(self):
+        # A profile with only a name must produce exactly one contact entry. A
+        # link whose URL is built from the field (mailto:) is the trap: the
+        # empty case yields the truthy string "mailto:", which added an entry
+        # with no label and left a dangling "|" in the header.
+        make_profile(email='', phone='', location='', linkedin_url='', github_url='')
+        entries = resume_latex.build_resume_context()['contact']
+        self.assertEqual(entries, [{'label': 'Portfolio', 'url': 'https://armin2080.de'}])
+        # And the rendered header shows no lone separator.
+        self.assertNotIn(r'\;|\; \\resumelink', resume_latex.build_latex_source())
+
     def test_experience_dates_and_bullets(self):
         WorkExperience.objects.create(
             role='Working Student', company='ACME', location='Düsseldorf',
@@ -283,6 +294,17 @@ class ResumeContextTests(TestCase):
         entry = resume_latex.build_resume_context()['certificates'][0]
         self.assertEqual(entry, {'name': 'Machine Learning', 'institution': 'Coursera', 'year': 2022})
 
+    def test_certificates_are_capped_to_the_most_recent(self):
+        # This site has several dozen certificates. Listing all of them turned
+        # the CV into an appendix, so the list is capped the way projects are.
+        for year in (2019, 2020, 2021):
+            Certificate.objects.create(
+                name=f'Cert {year}', institution='Issuer', issue_date=date(year, 1, 1),
+            )
+        with override_settings(RESUME_MAX_CERTIFICATES=2):
+            names = [item['name'] for item in resume_latex.build_resume_context()['certificates']]
+        self.assertEqual(names, ['Cert 2021', 'Cert 2020'])
+
     def test_languages_come_from_the_constant(self):
         languages = resume_latex.build_resume_context()['languages']
         self.assertEqual([item['name'] for item in languages], ['Persian', 'English', 'German'])
@@ -347,6 +369,20 @@ class ResumeTemplateTests(TestCase):
         self.assertIn(r'\section{Additional Information}', source)
         self.assertIn(r'\textbf{Languages:}', source)
         self.assertIn('Persian (Native), English (Advanced (C1)), German (A2/B1)', source)
+
+    def test_each_certificate_gets_its_own_bullet(self):
+        # Run together as one comma-separated paragraph, a long list of
+        # certificates becomes an unreadable block that dominates the page.
+        Certificate.objects.create(
+            name='Machine Learning', institution='Coursera', issue_date=date(2022, 5, 1),
+        )
+        Certificate.objects.create(
+            name='Deep Learning', institution='Coursera', issue_date=date(2023, 5, 1),
+        )
+        source = resume_latex.build_latex_source()
+        self.assertIn(r'\resumeItem{Deep Learning, Coursera 2023}', source)
+        self.assertIn(r'\resumeItem{Machine Learning, Coursera 2022}', source)
+        self.assertNotIn('Deep Learning, Coursera 2023; Machine Learning', source)
 
     def test_template_documents_its_delimiters_without_leaking_them(self):
         # The header explains the delimiters. It does so inside a comment, so it
@@ -589,11 +625,17 @@ class ResumeDownloadViewTests(TestCase):
 
 
 @skipUnless(resume_latex.engine_available(), 'no LaTeX engine installed')
+@override_settings(CACHES=LOCMEM)
 class RealCompileTests(TestCase):
     """The end-to-end path, run only where an engine actually exists.
 
     CI has no LaTeX engine, so these skip there; everything that does not need
     an engine is covered above, by mocking the compile step.
+
+    The LOCMEM cache override is not decoration: without it ``setUp`` calls
+    ``cache.clear()`` on the *real* cache. On a server that is the same cache
+    the site uses, so running the suite would wipe the warmed CV and every
+    contact-form rate limit with it.
     """
 
     def setUp(self):

@@ -400,6 +400,11 @@ containing `50%` cannot break the compile, and a `\end{document}` typed into a
 description cannot inject LaTeX. Values arrive already escaped — do not add a
 "safe" filter, and do not remove the escaping.
 
+The CV is a summary, not a dump. It lists the latest few projects
+(`RESUME_MAX_PROJECTS`) and certificates (`RESUME_MAX_CERTIFICATES`) — this site
+has several dozen certificates, and listing every one turned the CV into an
+appendix. Both are adjustable in `.env`.
+
 **How a download is served.** The PDF is cached, keyed by a hash of the exact
 LaTeX it was built from, so a changed site can never serve the previous CV, and
 nothing is written to `media/` (where `prune_media` would eventually see it as an

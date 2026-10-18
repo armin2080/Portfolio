@@ -340,8 +340,12 @@
 <% if certificates %>
     \item \small{
         \textbf{Certifications:}
-        <% for certificate in certificates %><< certificate.name >>, << certificate.institution >> << certificate.year >><% if not loop.last %>; <% endif %><% endfor %>
     }
+    \resumeItemListStart
+    <% for certificate in certificates %>
+        \resumeItem{<< certificate.name >>, << certificate.institution >> << certificate.year >>}
+    <% endfor %>
+    \resumeItemListEnd
 <% endif %>
 
 \end{itemize}
