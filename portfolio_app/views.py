@@ -6,10 +6,12 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.db.models import Count, Prefetch
 from django.db.models.functions import TruncDate
+from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
 
+from . import resume_latex
 from .models import (
     Category,
     Certificate,
@@ -261,4 +263,30 @@ def resume_view(req):
         'experiences': work_experiences,
         'skills': skills,
         'certificates': certificates,
+        # The download link is only offered when this machine can actually
+        # build a PDF, rather than presenting a button that returns an error.
+        'can_generate_cv': resume_latex.engine_available(),
     })
+
+
+def resume_download_view(req):
+    """Build the CV from the site's content and send it as a PDF download.
+
+    Nothing is stored: the PDF is rendered and compiled on demand and kept in
+    the cache, so the file a visitor gets always matches the site. See
+    portfolio_app/resume_latex.py for the generation and caching.
+    """
+    try:
+        pdf = resume_latex.generate_pdf()
+    except resume_latex.ResumeError:
+        # Missing engine, a compile that timed out, or a document that no longer
+        # compiles. All are our problem, not the visitor's, and all are more
+        # useful as a short apology than as a stack trace.
+        logger.exception('Could not generate the CV')
+        return render(req, 'resume_unavailable.html', status=503)
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = resume_latex.content_disposition()
+    # Regenerated content is keyed by a hash, so a short private cache is safe.
+    response['Cache-Control'] = 'private, max-age=300'
+    return response

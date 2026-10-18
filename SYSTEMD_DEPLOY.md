@@ -105,6 +105,48 @@ journalctl -u portfolio-media-prune -n 50 --no-pager
 Restoring is only possible from a backup, so make sure `media/` is included in
 yours (see below).
 
+## CV generation (LaTeX)
+
+The resume page's download button builds the CV from the site's content with
+Tectonic (see the README). Three things about the service sandbox matter:
+
+- **Install the engine on the Pi.** `scripts/install-latex.sh` selects the right
+  binary for the architecture (64-bit `aarch64`, or `armhf` on a 32-bit OS) and
+  puts it in `.latex/` inside the project:
+
+  ```bash
+  ./scripts/install-latex.sh
+  ```
+
+- **Set `RESUME_LATEX_CACHE_DIR` in `.env`.** Tectonic keeps the support files it
+  downloads under the user's home by default, and the unit makes everything under
+  `/home` read-only (`ProtectHome=read-only`). Without this the first compile
+  cannot fetch its packages and the download answers 503:
+
+  ```
+  RESUME_LATEX_CACHE_DIR=/var/lib/portfolio/tectonic
+  ```
+
+  `/var/lib/portfolio` is already in `ReadWritePaths`, and Tectonic creates the
+  subdirectory itself. **An existing `.env` will not have this line — add it by
+  hand**; the installer only writes `.env` when there isn't one.
+
+- **Keep `RESUME_LATEX_TIMEOUT` below `GUNICORN_TIMEOUT`.** The site runs one
+  synchronous worker, so a compile that outlives the worker timeout gets the
+  worker killed and takes the *whole site* down, not just the download.
+
+Warm the cache after installing and after changing content:
+
+```bash
+.venv/bin/python manage.py build_resume
+```
+
+This is the slow step, and the first run also downloads the package bundle. It is
+cheap to re-run afterwards: it compiles only when the content has actually
+changed. A daily timer running it would keep the download a cache hit for the
+first visitor after an edit; **no such timer is installed**, so run it by hand
+after a content change, or cancel it out by accepting one slow download.
+
 ## Backups
 
 All stateful data lives in `/var/lib/portfolio`:

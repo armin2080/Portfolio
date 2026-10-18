@@ -1,0 +1,354 @@
+% =========================================================
+% ARMIN OS -- TECHNICAL RESUME TEMPLATE
+% Design: ThinkPad Cyber-Professional
+% Format: A4 | Single Column | ATS Friendly
+% =========================================================
+<#
+    This file is both the LaTeX design and a Jinja2 template that gets filled in
+    from the site's own content (see portfolio_app/resume_latex.py). Editing the
+    site is what changes the CV; there is no uploaded PDF to keep in step.
+
+    The values use non-standard delimiters on purpose: LaTeX is full of braces
+    and percent signs, so "\newcommand{\foo}[2]{%" would be read as a template
+    tag and break the file. The delimiters are
+
+        << value >>      a value from the database, already escaped for LaTeX
+        <% if ... %>     a template tag: if / for / endif / endfor
+
+    Everything outside those delimiters is ordinary LaTeX and passes through
+    untouched, so the design below can be edited as normal.
+
+    A value arrives already escaped, so never add an escaping or "safe" filter,
+    and never remove the escaping in the module: a skill called "C++" or a
+    description containing "50%" would stop the document compiling.
+
+    The preamble works with both pdfLaTeX and XeTeX (Tectonic); see
+    scripts/install-latex.sh for how the engine is obtained.
+#>
+
+\documentclass[a4paper,10pt]{article}
+
+% ---------------------------------------------------------
+% PACKAGES
+% ---------------------------------------------------------
+
+% iftex first: the input-encoding packages below are chosen by engine.
+\usepackage{iftex}
+
+\ifPDFTeX
+  % pdfLaTeX reads bytes, so the encoding has to be declared, and
+  % cmap/glyphtounicode are what make text copy-pasteable out of the PDF.
+  % XeTeX and LuaTeX read UTF-8 natively and supply their own ToUnicode maps,
+  % and would reject cmap.
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{cmap}
+  \input{glyphtounicode}
+  \pdfgentounicode=1
+\fi
+
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+
+% ---------------------------------------------------------
+% ARMIN OS COLOR PALETTE
+% ---------------------------------------------------------
+
+\definecolor{cvgraphite}{HTML}{101820}
+\definecolor{cvcyan}{HTML}{00A9D6}
+\definecolor{cvdeepcyan}{HTML}{087EA4}
+\definecolor{cvmuted}{HTML}{64748B}
+\definecolor{cvline}{HTML}{DCE4E9}
+
+% ---------------------------------------------------------
+% PDF METADATA
+% ---------------------------------------------------------
+
+\hypersetup{
+    pdftitle={<< name >> - CV},
+    pdfauthor={<< name >>},
+    pdfsubject={<< title >>},
+    pdfkeywords={<< keywords >>}
+}
+
+% ---------------------------------------------------------
+% PAGE CONFIGURATION
+% ---------------------------------------------------------
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\setlength{\footskip}{14pt}
+
+\addtolength{\oddsidemargin}{-0.15in}
+\addtolength{\evensidemargin}{-0.15in}
+\addtolength{\textwidth}{0.30in}
+
+\addtolength{\topmargin}{-0.35in}
+\addtolength{\textheight}{0.70in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\parindent}{0pt}
+\setlength{\tabcolsep}{0pt}
+
+% ---------------------------------------------------------
+% SECTION STYLING
+% ---------------------------------------------------------
+
+\titleformat{\section}
+  {\large\bfseries\color{cvgraphite}}
+  {\color{cvcyan}\thesection}
+  {0.65em}
+  {}
+  [\color{cvcyan}\titlerule]
+
+\titlespacing*{\section}
+  {0pt}
+  {12pt}
+  {7pt}
+
+% ---------------------------------------------------------
+% LIST CONFIGURATION
+% ---------------------------------------------------------
+
+\setlist[itemize]{
+    leftmargin=1.4em,
+    itemsep=2pt,
+    topsep=3pt,
+    parsep=0pt,
+    partopsep=0pt
+}
+
+\renewcommand\labelitemii{\textbullet}
+
+% ---------------------------------------------------------
+% CUSTOM COMMANDS
+% ---------------------------------------------------------
+
+% Hyperlinks
+\newcommand{\resumelink}[2]{%
+    \href{#1}{\textcolor{cvdeepcyan}{#2}}%
+}
+
+% Experience / Education heading
+\newcommand{\resumeSubheading}[4]{%
+    \item
+    \textbf{#1}\hfill
+    {\small\color{cvmuted}#2}\\
+    {\small #3}\hfill
+    {\small\color{cvmuted}#4}
+    \vspace{-2pt}
+}
+
+% Project heading
+\newcommand{\resumeProjectHeading}[2]{%
+    \item
+    \textbf{#1}\hfill
+    {\small\color{cvmuted}#2}
+    \vspace{-2pt}
+}
+
+% Description bullet
+\newcommand{\resumeItem}[1]{%
+    \item {\small #1}
+}
+
+% List wrappers
+\newcommand{\resumeSubHeadingListStart}{
+    \begin{itemize}[leftmargin=0pt,label={},itemsep=7pt]
+}
+
+\newcommand{\resumeSubHeadingListEnd}{
+    \end{itemize}
+}
+
+\newcommand{\resumeItemListStart}{
+    \begin{itemize}
+}
+
+\newcommand{\resumeItemListEnd}{
+    \end{itemize}\vspace{-3pt}
+}
+
+% ---------------------------------------------------------
+% DOCUMENT START
+% ---------------------------------------------------------
+
+\begin{document}
+
+% =========================================================
+% HEADER
+% =========================================================
+
+\begin{center}
+
+    {\fontsize{23}{26}\selectfont
+    \bfseries\color{cvgraphite}
+    << name >>}
+
+    \vspace{4pt}
+
+    {\small\bfseries\color{cvdeepcyan}
+    << title >>}
+
+    \vspace{7pt}
+
+    {\small
+    <% for item in contact %><% if item.url %>\resumelink{<< item.url >>}{<< item.label >>}<% else %><< item.label >><% endif %><% if not loop.last %> \;|\; <% endif %><% endfor %>}
+
+\end{center}
+
+\vspace{-4pt}
+{\color{cvcyan}\hrule height 1.2pt}
+\vspace{3pt}
+
+% =========================================================
+% PROFESSIONAL SUMMARY
+% =========================================================
+
+<% if summary %>
+\section{Professional Summary}
+
+\small
+<< summary >>
+\normalsize
+<% endif %>
+
+% =========================================================
+% EXPERIENCE
+% =========================================================
+
+<% if experiences %>
+\section{Experience}
+
+\resumeSubHeadingListStart
+<% for experience in experiences %>
+    \resumeSubheading
+        {<< experience.company >>}
+        {<< experience.dates >>}
+        {<< experience.role >>}
+        {<< experience.location >>}
+<% if experience.bullets %>
+    \resumeItemListStart
+<% for bullet in experience.bullets %>
+        \resumeItem{<< bullet >>}
+<% endfor %>
+    \resumeItemListEnd
+<% endif %>
+<% endfor %>
+\resumeSubHeadingListEnd
+<% endif %>
+
+% =========================================================
+% EDUCATION
+% =========================================================
+
+<% if educations %>
+\section{Education}
+
+\resumeSubHeadingListStart
+<% for education in educations %>
+    \resumeSubheading
+        {<< education.institution >>}
+        {<< education.dates >>}
+        {<< education.degree >>}
+        {}
+<% if education.bullets %>
+    \resumeItemListStart
+<% for bullet in education.bullets %>
+        \resumeItem{<< bullet >>}
+<% endfor %>
+    \resumeItemListEnd
+<% endif %>
+<% endfor %>
+\resumeSubHeadingListEnd
+<% endif %>
+
+% =========================================================
+% SELECTED PROJECTS
+% =========================================================
+
+<% if projects %>
+\section{Selected Projects}
+
+\resumeSubHeadingListStart
+<% for project in projects %>
+    \resumeProjectHeading
+        {\resumelink{<< project.link >>}{<< project.name >><% if project.technologies %> $|$ << project.technologies >><% endif %>}}
+        {}
+<% if project.bullets %>
+    \resumeItemListStart
+<% for bullet in project.bullets %>
+        \resumeItem{<< bullet >>}
+<% endfor %>
+    \resumeItemListEnd
+<% endif %>
+<% endfor %>
+\resumeSubHeadingListEnd
+<% endif %>
+
+% =========================================================
+% TECHNICAL SKILLS
+% =========================================================
+
+% One line per main skill, with that skill's sub-skills as the detail. The
+% two-level skill tree on the site already groups technologies this way, so no
+% separate categorisation is needed here.
+
+<% if skills %>
+\section{Technical Skills}
+
+\begin{itemize}[leftmargin=0pt,label={},itemsep=3pt]
+
+<% for skill in skills %>
+    \item \small{
+        \textbf{<< skill.name >><% if skill.technologies %>: << skill.technologies >><% endif %>}
+    }
+<% endfor %>
+
+\end{itemize}
+<% endif %>
+
+% =========================================================
+% ADDITIONAL INFORMATION
+% =========================================================
+
+<% if languages or certificates %>
+\section{Additional Information}
+
+\begin{itemize}[leftmargin=0pt,label={},itemsep=3pt]
+
+<% if languages %>
+    \item \small{
+        \textbf{Languages:}
+        <% for language in languages %><< language.name >> (<< language.level >>)<% if not loop.last %>, <% endif %><% endfor %>
+    }
+<% endif %>
+
+<% if certificates %>
+    \item \small{
+        \textbf{Certifications:}
+        <% for certificate in certificates %><< certificate.name >>, << certificate.institution >> << certificate.year >><% if not loop.last %>; <% endif %><% endfor %>
+    }
+<% endif %>
+
+\end{itemize}
+<% endif %>
+
+% =========================================================
+% DOCUMENT END
+% =========================================================
+
+\end{document}

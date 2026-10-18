@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}CV Unavailable{% endblock %}
+{% block meta_description %}The CV could not be generated right now.{% endblock %}
+
+{% block content %}
+<section class="bg-page text-heading py-24">
+    <div class="container mx-auto px-4 md:px-8 text-center">
+        <div class="max-w-lg mx-auto">
+            <div class="text-8xl font-bold text-emphasis mb-4">503</div>
+            <h1 class="text-3xl md:text-4xl font-bold mb-4">CV Unavailable</h1>
+            <p class="text-lg text-ink mb-8">
+                The CV is generated from this site the moment you ask for it, and
+                that did not work just now. It is usually a temporary problem —
+                please try again in a moment.
+            </p>
+            <a href="{% url 'resume' %}"
+               class="btn-primary bg-primary hover:bg-opacity-90 text-inverse px-6 py-3 rounded-md font-medium inline-flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to Resume
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

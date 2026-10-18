@@ -30,6 +30,9 @@ ENV/
 # Tailwind standalone CLI download (see scripts/build-css.sh)
 /.tailwind/
 
+# Tectonic LaTeX engine download (see scripts/install-latex.sh)
+/.latex/
+
 # IDE
 .vscode/
 .idea/

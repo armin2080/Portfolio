@@ -6,3 +6,7 @@ gunicorn
 whitenoise
 python-dotenv
 python-dateutil
+
+# Renders the CV's LaTeX template (resume/resume.tex). LaTeX collides with
+# Django's template syntax and Django cannot use custom delimiters; Jinja2 can.
+Jinja2>=3.1

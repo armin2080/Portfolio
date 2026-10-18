@@ -20,7 +20,7 @@ I am a dedicated Data Scientist and Developer with expertise in transforming com
 - **Skills Section**: Displays key skills with automatically calculated years of experience, split into technical and soft skills.
 - **Projects Section**: Showcases various projects I've worked on, filterable by category. New public GitHub repositories are imported automatically once a day.
 - **Contact Page**: Allows users to get in touch via a contact form (protected by reCAPTCHA, a honeypot field, and rate limiting).
-- **Downloadable Resume**: Users can download my resume in both English and German formats.
+- **Generated CV**: The download button on the resume page builds a PDF from the site's own content (LaTeX → PDF), so the download always matches the site instead of being a file that has to be kept up to date by hand.
 
 ## Technologies Used
 This portfolio was built using the following technologies:
@@ -360,6 +360,65 @@ Override with `--min-age-hours`, or set it to 0 to disable.
 On a server, `portfolio-media-prune.timer` runs this monthly — see
 [SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md).
 
+### CV generated from the site (`/resume/download/`)
+
+The resume page's **Download CV** button builds a PDF from the site's own
+content. The header, summary, experience, education, projects, skill tree,
+certificates and languages are read from the database, filled into the LaTeX
+design in `resume/resume.tex`, and compiled. There is no uploaded PDF to keep in
+step with the content — editing the site is what changes the CV.
+
+   ```bash
+   scripts/install-latex.sh                     # fetch the LaTeX engine (~26 MB)
+   .venv/bin/python manage.py build_resume      # build once, and cache it
+   .venv/bin/python manage.py build_resume --out CV.pdf --tex CV.tex
+   ```
+
+`build_resume` is optional day to day, but worth running after changing content:
+the first download after a change pays for the compile, and on the Pi that is the
+slow part. `--tex` writes exactly what the engine was given, which is the useful
+thing to look at when a change will not compile.
+
+**The engine.** [Tectonic](https://tectonic-typesetting.github.io/) — a single
+static binary, no root needed, and it downloads only the packages the document
+actually uses. `scripts/install-latex.sh` puts it in `.latex/` (git-ignored), the
+same arrangement as the Tailwind CLI in `.tailwind/`. A system `pdflatex` or
+`xelatex` works too: `RESUME_LATEX_ENGINE` selects one explicitly, and otherwise
+the project's own binary is preferred. The preamble compiles under both pdfLaTeX
+and XeTeX.
+
+**Editing the design.** `resume/resume.tex` is the LaTeX design *and* a Jinja2
+template. Values are inserted with `<< value >>`, and control flow with
+`<% if %>` / `<% for %>`. Those delimiters are deliberately not Jinja's usual
+ones: LaTeX is full of braces and percent signs, so `\newcommand{\foo}[2]{%` or
+`\textbf{{{ x }}}` would be read as a template tag and break the file. Everything
+outside the delimiters is ordinary LaTeX.
+
+**Everything is escaped, in Python.** `build_resume_context()` escapes each value
+before it reaches the template, so a skill called `C++` or a description
+containing `50%` cannot break the compile, and a `\end{document}` typed into a
+description cannot inject LaTeX. Values arrive already escaped — do not add a
+"safe" filter, and do not remove the escaping.
+
+**How a download is served.** The PDF is cached, keyed by a hash of the exact
+LaTeX it was built from, so a changed site can never serve the previous CV, and
+nothing is written to `media/` (where `prune_media` would eventually see it as an
+orphan). Only one compile runs at a time: a second request during a compile waits
+for the result rather than starting a competing LaTeX process.
+
+**On the Pi, the timeout matters.** The site runs a single synchronous Gunicorn
+worker with a 30-second timeout, so a compile that outlives it takes the *whole
+site* down rather than failing one download. `RESUME_LATEX_TIMEOUT` (default 20s)
+must stay below `GUNICORN_TIMEOUT`, and Tectonic's package cache needs a writable
+directory — set `RESUME_LATEX_CACHE_DIR` (see [SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md)).
+If the button is missing from the resume page, no engine was found: the page only
+offers the download when a PDF can actually be produced.
+
+Languages are not a model on this site, so the CV takes them from a short
+constant in `resume_latex.py` that mirrors the Languages panel on `/resume/`.
+If they ever become editable, they should move to a model and that constant go
+away.
+
 ### Raspberry Pi deployment
 
 For a lightweight production setup, use the Gunicorn systemd deployment in
@@ -372,7 +431,8 @@ Once the website is running, you can navigate through different sections using t
 
 **Home Page:** Overview of who I am.
 
-**Resume Page:** Showcasing my resume, with downloadable files.
+**Resume Page:** Showcasing my resume, with a CV that is generated from the site's
+own content as a PDF when you download it.
 
 **Skills Page:** Detailed information about my skills.
 

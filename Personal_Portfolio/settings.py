@@ -227,6 +227,44 @@ if not ANALYTICS_SALT:
 ANALYTICS_RETENTION_DAYS = int(os.environ.get('ANALYTICS_RETENTION_DAYS', '180'))
 
 
+# CV generated from the site's own content (see portfolio_app/resume_latex.py)
+#
+# The download button renders the LaTeX template in resume/ from the database and
+# compiles it, so the CV can never drift from the site. `RESUME_LATEX_ENGINE` may
+# name a binary or give a full path; when empty the project's own downloaded
+# Tectonic binary (.latex/tectonic, see scripts/install-latex.sh) is preferred
+# over a system pdflatex.
+RESUME_LATEX_ENGINE = os.environ.get('RESUME_LATEX_ENGINE', '')
+
+# Hard limit on one compile. This MUST stay below GUNICORN_TIMEOUT (30s in
+# gunicorn_config.py): the production site runs a single synchronous worker, so
+# a compile that outlives the worker timeout gets the worker killed and takes
+# the whole site down with it, rather than just failing one download.
+RESUME_LATEX_TIMEOUT = int(os.environ.get('RESUME_LATEX_TIMEOUT', '20'))
+
+# How long a request waits for a compile that another request already started
+# before giving up. Bounded separately so the worst case for one request stays
+# comfortably inside the Gunicorn timeout.
+RESUME_LATEX_WAIT_SECONDS = int(os.environ.get('RESUME_LATEX_WAIT_SECONDS', '8'))
+
+# How long a generated PDF stays cached, keyed by the hash of its source, so it
+# is never stale — this only bounds how often unchanged content is recompiled.
+# Set to 0 to disable caching (and recompile on every download).
+RESUME_LATEX_CACHE_SECONDS = int(
+    os.environ.get('RESUME_LATEX_CACHE_SECONDS', str(60 * 60 * 24 * 7))
+)
+
+# Where Tectonic keeps the support files it downloads. It defaults to a cache
+# directory under the user's home, which the systemd sandbox makes read-only
+# apart from the project directory — set this to a writable path on a server
+# (see SYSTEMD_DEPLOY.md), otherwise the first compile cannot fetch its packages.
+RESUME_LATEX_CACHE_DIR = os.environ.get('RESUME_LATEX_CACHE_DIR', '')
+
+# How many of the most recent projects the CV lists. A CV is a summary; the
+# projects page is the place to see everything.
+RESUME_MAX_PROJECTS = int(os.environ.get('RESUME_MAX_PROJECTS', '4'))
+
+
 # GitHub project sync (see portfolio_app/github_sync.py)
 # Public repositories are imported as projects by `manage.py sync_github_projects`,
 # which a systemd timer runs daily. Nothing is ever deleted, and edits made in the

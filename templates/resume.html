@@ -27,21 +27,17 @@
                 </div>
             </div>
 
-            {% if profile.resume_en or profile.resume_de %}
-            <!-- Download Resume Buttons (only shown when a file is uploaded) -->
+            {% if can_generate_cv %}
+            <!-- The CV is rendered from this page's own content when it is
+                 requested, so there is no uploaded file to link to. -->
             <div class="mt-1 text-center md:text-left">
-                {% if profile.resume_en %}
-                <a href="{{ profile.resume_en.url }}" download
-                class='btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-4 py-2 rounded-md mr-2'>
-                English CV file
+                <a href="{% url 'resume_download' %}"
+                class='btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-4 py-2 rounded-md inline-flex items-center'>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"></path>
+                    </svg>
+                    Download CV (PDF)
                 </a>
-                {% endif %}
-                {% if profile.resume_de %}
-                <a href="{{ profile.resume_de.url }}" download
-                class='btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-4 py-2 rounded-md'>
-                German CV file
-                </a>
-                {% endif %}
             </div>
             {% endif %}
         </header>
