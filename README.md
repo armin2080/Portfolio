@@ -400,10 +400,43 @@ containing `50%` cannot break the compile, and a `\end{document}` typed into a
 description cannot inject LaTeX. Values arrive already escaped — do not add a
 "safe" filter, and do not remove the escaping.
 
-The CV is a summary, not a dump. It lists the latest few projects
-(`RESUME_MAX_PROJECTS`) and certificates (`RESUME_MAX_CERTIFICATES`) — this site
-has several dozen certificates, and listing every one turned the CV into an
-appendix. Both are adjustable in `.env`.
+**The CV is one page.** There is more content on the site than fits on one A4
+page, so the `RESUME_MAX_*` settings decide what goes in and long descriptions
+are shortened — preferably at a sentence boundary, otherwise with a visible
+ellipsis. Trimming is a fixed budget rather than a "compile, measure, retry"
+loop, because a compile costs ~20 s on the Pi and holds the site's only worker.
+`generate_pdf` logs a warning if the result still runs long, and
+`scripts/measure-resume.py` reports the page count for any database:
+
+   ```bash
+   DB_NAME=/path/to/db.sqlite3 DEBUG=True SECRET_KEY=x \
+       .venv/bin/python scripts/measure-resume.py
+   ```
+
+The CV is a summary, not a dump. It lists the latest few projects and
+certificates — this site has several dozen certificates, and listing every one
+turned the CV into an appendix.
+
+### Customizing the CV (`/resume/generator/`)
+
+The resume page's **Customize which content it includes** link opens a form for
+choosing what the PDF contains: which roles, education, projects, skill
+categories and certifications, plus the summary and languages. It opens on the
+same selection the plain download button uses, so it starts from the
+recommendation rather than an empty form. Submitting returns the PDF as a
+download; nothing is stored, and a combination asked for before comes from the
+cache.
+
+Nothing a visitor types reaches the document: every field is a checkbox list of
+ids, validated against the very querysets the CV builds from
+(`resume_latex.SELECTABLE`). An id for an unpublished project, or for a different
+model, is a validation error rather than something that reaches a query — so
+there is no path by which a visitor's own LaTeX could be compiled. The POST is
+rate limited (generously) because each *new* combination is a full compile.
+
+The sections the form offers are the site's own two-level skill tree and its
+models, not a second hand-written taxonomy — "skill categories" are the main
+skills, and each shows its sub-skills as the detail line.
 
 **How a download is served.** The PDF is cached, keyed by a hash of the exact
 LaTeX it was built from, so a changed site can never serve the previous CV, and

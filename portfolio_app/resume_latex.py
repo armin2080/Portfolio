@@ -6,6 +6,23 @@ the certificates — is read from the database when a visitor asks for the file,
 editing the site is what changes the CV. There is no uploaded PDF to keep in
 step with the content any more.
 
+Two ways to ask for one:
+
+* ``/resume/download/`` — the site's own selection: its most relevant content,
+  sized to one page. This is the "Download CV" button.
+* ``/resume/generator/`` — the same document, built from a :class:`ResumeOptions`
+  the visitor chooses (which roles, projects, skill categories and certificates).
+  The page opens on the button's selection, so it starts from the recommendation
+  rather than an empty form.
+
+Either way the document is meant to be **one A4 page**. There is more content on
+the site than fits on one, so ``_select`` and the ``RESUME_MAX_*`` settings decide
+what goes in, and long descriptions are shortened — preferably at a sentence
+boundary — rather than spilling over. A compile costs ~20s on the production Pi
+and holds the site's only worker, so this is a fixed budget rather than a
+"compile, measure, retry" loop; ``generate_pdf`` logs a warning if the result is
+still longer than a page.
+
 How it works, in three steps:
 
 1. ``build_resume_context()`` reads the published content and **escapes every
@@ -150,20 +167,56 @@ def format_date_range(start, end, fallback='Present'):
     return f'{format_month_year(start, fallback)} -- {format_month_year(end, fallback)}'
 
 
-def description_lines(text):
+def shorten(text, limit):
+    """Shorten one line to about `limit` characters, preferring a clean ending.
+
+    The CV has to fit one page, and a description imported from GitHub can run to
+    several hundred characters. Cutting mid-clause reads as a broken sentence on
+    a document whose whole job is to look considered, so this prefers to stop
+    after a complete sentence and only falls back to a word boundary (with an
+    ellipsis, so it is visible that something was left out). A sentence that ends
+    less than halfway through the allowance is ignored — a three-word fragment
+    would be worse than the ellipsis.
+
+    The limit is applied before escaping, so it counts characters a reader sees
+    rather than LaTeX markup.
+    """
+    if len(text) <= limit:
+        return text
+
+    head = text[:limit]
+    for stop in ('. ', '! ', '? '):
+        cut = head.rfind(stop)
+        if cut > limit / 2:
+            return head[:cut + 1].rstrip()
+
+    cut = head.rsplit(' ', 1)[0].rstrip(' ,;:-')
+    return f'{cut}\u2026'
+
+
+def description_lines(text, limit=None, max_lines=None):
     """Split a stored description into bullet-sized lines.
 
     Returns already-escaped lines. Empty lines and the bullet markers the author
     typed are dropped, so both a blank line and a ``- item`` render as one CV
     bullet.
+
+    ``limit`` shortens each line and ``max_lines`` keeps only the first few: the
+    opening lines of a description carry the point, and the later ones are what
+    push the CV onto a second page.
     """
     lines = []
     for raw in (text or '').splitlines():
         line = raw.strip()
         while line[:1] in _BULLET_PREFIXES:
             line = line[1:].strip()
-        if line:
-            lines.append(latex_escape(line))
+        if not line:
+            continue
+        if limit:
+            line = shorten(line, limit)
+        lines.append(latex_escape(line))
+    if max_lines is not None:
+        return lines[:max_lines]
     return lines
 
 
@@ -207,68 +260,203 @@ def _contact_entries(profile):
     return entries
 
 
-def _experience_entries():
-    entries = []
-    for experience in WorkExperience.objects.all():
-        entries.append({
+# ---------------------------------------------------------------------------
+# What goes into the CV
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ResumeOptions:
+    """Which of the site's content a particular CV contains.
+
+    Each id collection is tri-state, and the difference is the whole point:
+
+    * ``None`` — nothing was chosen, so the site decides: its most relevant rows,
+      already within the one-page budget. This is what the plain "Download CV"
+      button asks for, and what the generator form starts from.
+    * an empty tuple — that section was deliberately cleared, so it is left out.
+    * a non-empty tuple — exactly those rows, still capped by the budget, since
+      the document has to fit one page whatever is asked for.
+
+    Ids are never trusted by themselves. The form resolves them against
+    querysets (see ``forms.ResumeOptionsForm``), so an id belonging to an
+    unpublished project, or to a different model, fails validation rather than
+    reaching a query.
+    """
+
+    experience_ids: tuple = None
+    education_ids: tuple = None
+    project_ids: tuple = None
+    skill_ids: tuple = None
+    certificate_ids: tuple = None
+    include_summary: bool = True
+    include_languages: bool = True
+
+
+def _select(queryset, ids, limit):
+    """One section's rows: an explicit choice, or the site's own priority.
+
+    The queryset supplies the order (newest first, or the admin's display
+    order), and the cap is what keeps the CV to a single page no matter what is
+    selected. The generator page states the caps, so a selection that exceeds one
+    is trimmed visibly rather than silently.
+    """
+    rows = queryset if ids is None else queryset.filter(pk__in=ids)
+    return list(rows[:limit])
+
+
+# The selectable rows, one function per section. The generator's form uses these
+# same querysets to validate what it is sent, so "what the form accepts" and
+# "what the CV can contain" cannot drift apart — an id for an unpublished
+# project, or for a different model, is rejected by validation rather than
+# reaching a query.
+
+
+def selectable_experience():
+    return WorkExperience.objects.all()
+
+
+def selectable_education():
+    return Education.objects.all()
+
+
+def selectable_projects():
+    return Project.objects.filter(is_published=True).prefetch_related('skills_used__parent')
+
+
+def selectable_skills():
+    return Skill.objects.filter(is_published=True, parent__isnull=True)
+
+
+def selectable_certificates():
+    return Certificate.objects.all()
+
+
+SELECTABLE = {
+    'experiences': (selectable_experience, 'RESUME_MAX_EXPERIENCE'),
+    'educations': (selectable_education, 'RESUME_MAX_EDUCATION'),
+    'projects': (selectable_projects, 'RESUME_MAX_PROJECTS'),
+    'skills': (selectable_skills, 'RESUME_MAX_SKILLS'),
+    'certificates': (selectable_certificates, 'RESUME_MAX_CERTIFICATES'),
+}
+
+
+def default_selection():
+    """The selection the plain "Download CV" button uses.
+
+    Used as the generator form's initial state, so the page opens on the same CV
+    the button produces — the recommendation — and the visitor only changes what
+    they want to differ. Includes the two on/off sections, not just the ids, so
+    the checkboxes start in the right state too.
+    """
+    selection = {
+        field: [row.pk for row in _select(queryset(), None, getattr(settings, cap))]
+        for field, (queryset, cap) in SELECTABLE.items()
+    }
+    selection['include_summary'] = True
+    selection['include_languages'] = True
+    return selection
+
+
+def budget_caps():
+    """The per-section caps, for the generator page to state them."""
+    return {field: getattr(settings, cap) for field, (_queryset, cap) in SELECTABLE.items()}
+
+
+def _experience_entries(options):
+    rows = _select(
+        selectable_experience(),
+        options.experience_ids,
+        settings.RESUME_MAX_EXPERIENCE,
+    )
+    return [
+        {
             'company': latex_escape(experience.company),
             'role': latex_escape(experience.role),
             'location': latex_escape(experience.location),
             'dates': format_date_range(experience.start_date, experience.end_date),
-            'bullets': description_lines(experience.description),
-        })
-    return entries
+            'bullets': description_lines(
+                experience.description,
+                limit=settings.RESUME_MAX_BULLET_CHARS,
+                max_lines=settings.RESUME_MAX_EXPERIENCE_BULLETS,
+            ),
+        }
+        for experience in rows
+    ]
 
 
-def _education_entries():
-    entries = []
-    for education in Education.objects.all():
-        entries.append({
+def _education_entries(options):
+    rows = _select(
+        selectable_education(), options.education_ids, settings.RESUME_MAX_EDUCATION,
+    )
+    return [
+        {
             'institution': latex_escape(education.institution),
             'degree': latex_escape(education.degree),
+            # Education has no location on older rows; the template omits an
+            # empty one rather than printing a stray gap.
+            'location': latex_escape(education.location),
             'dates': format_date_range(education.start_date, education.end_date),
-            'bullets': description_lines(education.description),
-        })
-    return entries
+            'bullets': description_lines(
+                education.description,
+                limit=settings.RESUME_MAX_BULLET_CHARS,
+                max_lines=settings.RESUME_MAX_EDUCATION_BULLETS,
+            ),
+        }
+        for education in rows
+    ]
 
 
-def _project_entries():
-    """The most recent published projects, with the technologies they used."""
-    projects = (
-        Project.objects.filter(is_published=True)
-        .prefetch_related('skills_used__parent')[: settings.RESUME_MAX_PROJECTS]
+def _project_entries(options):
+    """The selected projects, with the technologies each one used."""
+    rows = _select(
+        selectable_projects(),
+        options.project_ids,
+        settings.RESUME_MAX_PROJECTS,
     )
-    entries = []
-    for project in projects:
-        technologies = ', '.join(
-            latex_escape(skill.name) for skill in project.display_skills()
-        )
-        entries.append({
+    return [
+        {
             'name': latex_escape(project.name),
             'link': latex_escape_url(project.link),
-            'technologies': technologies,
-            'bullets': description_lines(project.description),
-        })
-    return entries
+            # A project can carry a dozen tags. On the site they are a browsing
+            # aid; on a CV they sit in the heading, where a long list wraps to
+            # three lines and dwarfs the entry. The site's own order is kept.
+            'technologies': ', '.join(
+                latex_escape(skill.name)
+                for skill in project.display_skills()[: settings.RESUME_MAX_PROJECT_TECHNOLOGIES]
+            ),
+            'bullets': description_lines(
+                project.description,
+                limit=settings.RESUME_MAX_BULLET_CHARS,
+                max_lines=settings.RESUME_MAX_PROJECT_BULLETS,
+            ),
+        }
+        for project in rows
+    ]
 
 
-def _skill_rows():
+def _skill_rows(options):
     """Main skills paired with their sub-skills, both published.
 
     The two-level tree already groups technologies the way a CV wants them — the
     main skill is the heading and the sub-skills are the technologies under it —
-    so no separate categorisation is needed.
+    so the tree *is* the categorisation, and the generator's "choose categories"
+    step picks from these main skills. No second, hand-written taxonomy exists to
+    drift out of step with the site.
     """
-    main_skills = list(
-        Skill.objects.filter(is_published=True, parent__isnull=True)
-        .order_by('display_order', 'start_date', 'name')
+    main_skills = _select(
+        selectable_skills(),
+        options.skill_ids,
+        settings.RESUME_MAX_SKILLS,
     )
     subskills_by_parent = {}
-    for subskill in (
-        Skill.objects.filter(is_published=True, parent__isnull=False)
-        .order_by('display_order', 'start_date', 'name')
-    ):
-        subskills_by_parent.setdefault(subskill.parent_id, []).append(subskill)
+    if main_skills:
+        for subskill in (
+            Skill.objects.filter(
+                is_published=True, parent__in=[skill.pk for skill in main_skills],
+            ).order_by('display_order', 'start_date', 'name')
+        ):
+            subskills_by_parent.setdefault(subskill.parent_id, []).append(subskill)
 
     return [(skill, subskills_by_parent.get(skill.pk, [])) for skill in main_skills]
 
@@ -284,43 +472,60 @@ def _skill_entries(rows):
 
 
 def _skill_keywords(rows):
-    """Every skill name, for the PDF's keyword metadata."""
+    """Every skill name, for the PDF's keyword metadata.
+
+    Taken from the rows actually rendered, so a CV for a specific application
+    does not advertise skills it left out.
+    """
     names = [skill.name for skill, _subskills in rows]
     names += [subskill.name for _skill, subskills in rows for subskill in subskills]
     return latex_escape(', '.join(names))
 
 
-def _certificate_entries():
-    """The most recent certificates, newest first (see ``Certificate.Meta``)."""
+def _certificate_entries(options):
+    """The selected certificates, newest first (see ``Certificate.Meta``)."""
+    rows = _select(
+        selectable_certificates(),
+        options.certificate_ids,
+        settings.RESUME_MAX_CERTIFICATES,
+    )
     return [
         {
             'name': latex_escape(certificate.name),
             'institution': latex_escape(certificate.institution),
             'year': certificate.issue_date.year,
         }
-        for certificate in Certificate.objects.all()[: settings.RESUME_MAX_CERTIFICATES]
+        for certificate in rows
     ]
 
 
-def build_resume_context():
-    """Everything the template needs, with every value already LaTeX-escaped."""
+def build_resume_context(options=None):
+    """Everything the template needs, with every value already LaTeX-escaped.
+
+    ``options`` is what ``ResumeOptions()`` means by default: the site's own
+    selection, sized to fit one page.
+    """
+    options = options or ResumeOptions()
     profile = Profile.objects.first()
-    skill_rows = _skill_rows()
+    skill_rows = _skill_rows(options)
+    languages = [
+        {'name': latex_escape(name), 'level': latex_escape(level)}
+        for name, level in LANGUAGES
+    ] if options.include_languages else []
     return {
         'name': latex_escape(profile.name if profile else ''),
         'title': latex_escape(profile.title.upper() if profile and profile.title else ''),
         'contact': _contact_entries(profile),
-        'summary': latex_escape(profile.professional_summary if profile else ''),
+        'summary': (
+            latex_escape(profile.professional_summary or '') if profile else ''
+        ) if options.include_summary else '',
         'keywords': _skill_keywords(skill_rows),
-        'experiences': _experience_entries(),
-        'educations': _education_entries(),
-        'projects': _project_entries(),
+        'experiences': _experience_entries(options),
+        'educations': _education_entries(options),
+        'projects': _project_entries(options),
         'skills': _skill_entries(skill_rows),
-        'languages': [
-            {'name': latex_escape(name), 'level': latex_escape(level)}
-            for name, level in LANGUAGES
-        ],
-        'certificates': _certificate_entries(),
+        'languages': languages,
+        'certificates': _certificate_entries(options),
     }
 
 
@@ -369,9 +574,9 @@ def render_latex(context=None):
         raise ResumeError(f'{RESUME_TEMPLATE_NAME} could not be rendered: {exc}') from exc
 
 
-def build_latex_source():
-    """Convenience wrapper: context -> LaTeX source."""
-    return render_latex(build_resume_context())
+def build_latex_source(options=None):
+    """Convenience wrapper: options -> LaTeX source."""
+    return render_latex(build_resume_context(options))
 
 
 def pdf_filename():
@@ -414,10 +619,14 @@ class LatexEngine:
             # input directory. The document needs neither, and this is the only
             # place the site runs an external program on content that came from
             # the database, so the restriction is worth having.
+            # `--keep-logs` keeps resume.log, which is where the engine records
+            # "Output written on ... (N pages)" — how the page count is read
+            # back without a PDF library.
             return [
-                self.path, '--chatter', 'minimal', '--untrusted',
+                self.path, '--chatter', 'minimal', '--untrusted', '--keep-logs',
                 '--outdir', str(output_dir), str(source_path),
             ]
+        # pdflatex writes its log next to the output by default.
         return [
             self.path, '-interaction=nonstopmode', '-halt-on-error',
             '-file-line-error', f'-output-directory={output_dir}', str(source_path),
@@ -491,8 +700,38 @@ def _compile_environment():
     return environment
 
 
+@dataclass(frozen=True)
+class Compilation:
+    """A compiled document, and how many pages it came to.
+
+    The page count is read from the engine's own log rather than by parsing the
+    PDF: xdvipdfmx writes PDF 1.5, which hides the page tree inside a compressed
+    object stream, so counting it from the bytes needs either a PDF library (a
+    dependency, and something else to keep current on the Pi) or a hand-written
+    object-stream parser. The engine already knows, and says so in the log.
+    """
+
+    pdf: bytes
+    pages: int
+
+
+# "Output written on resume.xdv (2 pages, 57664 bytes)."
+_PAGES_RE = re.compile(r'Output written on .*?\((\d+)\s+pages?')
+
+
+def _pages_from_log(workdir):
+    """Pages the engine reported, defaulting to 1 (a CV is normally one page)."""
+    log = Path(workdir) / 'resume.log'
+    try:
+        text = log.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return 1
+    match = _PAGES_RE.search(text)
+    return int(match.group(1)) if match else 1
+
+
 def compile_latex(source, engine=None):
-    """Compile LaTeX source and return the PDF as bytes.
+    """Compile LaTeX source and return a :class:`Compilation`.
 
     Runs in a scratch directory of its own, so two compiles cannot tread on each
     other's aux files and nothing is left behind in the project.
@@ -534,7 +773,7 @@ def compile_latex(source, engine=None):
                 log=log[-4000:],
             )
 
-        return output.read_bytes()
+        return Compilation(pdf=output.read_bytes(), pages=_pages_from_log(workdir))
 
 
 # ---------------------------------------------------------------------------
@@ -542,22 +781,37 @@ def compile_latex(source, engine=None):
 # ---------------------------------------------------------------------------
 
 
+# Bumped whenever the cached value's shape changes. Without it, an entry written
+# by the previous release (which cached bare PDF bytes) would be read back as the
+# new dict and fail with an AttributeError on the first download after a deploy
+# — the key is derived from the source, so it does not change on its own.
+_CACHE_VERSION = 'v2'
+
+
 def _cache_key(source, engine):
     digest = hashlib.sha256(source.encode('utf-8')).hexdigest()
-    return f'resume-pdf:{engine.name}:{digest}'
+    return f'resume-pdf:{_CACHE_VERSION}:{engine.name}:{digest}'
 
 
 def _lock_key():
     return 'resume-pdf:lock'
 
 
-def generate_pdf(*, use_cache=True, force=False):
+def _from_entry(entry):
+    """Rebuild a :class:`Compilation` from its cached form."""
+    if entry is None:
+        return None
+    return Compilation(pdf=entry['pdf'], pages=entry['pages'])
+
+
+def generate_pdf(options=None, *, use_cache=True, force=False):
     """Produce the CV PDF, compiling only when the cache cannot answer.
 
-    The cache key is a hash of the exact LaTeX source, plus the engine name, so
-    editing any content or the template produces a different key and the stale
-    entry is simply never read again. No invalidation logic is needed, and a
-    compile can never serve a PDF built from older content.
+    The cache key is a hash of the exact LaTeX source — which is itself a
+    function of the content *and* the chosen ``options`` — plus the engine name,
+    so changing the site or selecting different items produces a different key
+    and the stale entry is simply never read again. No invalidation logic is
+    needed, and a compile can never serve a PDF built from other content.
 
     A cache miss takes the compile lock. A second request arriving during a
     compile waits for the first one's result — on the production Pi three
@@ -574,14 +828,14 @@ def generate_pdf(*, use_cache=True, force=False):
             'RESUME_LATEX_ENGINE to a pdflatex/tectonic binary.'
         )
 
-    source = build_latex_source()
+    source = build_latex_source(options)
     key = _cache_key(source, engine)
 
     if not use_cache:
         return compile_latex(source, engine=engine)
 
     if not force:
-        cached = cache.get(key)
+        cached = _from_entry(cache.get(key))
         if cached is not None:
             return cached
 
@@ -596,17 +850,31 @@ def generate_pdf(*, use_cache=True, force=False):
         if pdf is not None:
             return pdf
         # Deliberately no second compile here. On production the site runs a
-        # single synchronous worker with a 30s Gunicorn timeout, so waiting and
-        # then compiling could run two long operations inside one request and
-        # have the worker killed — taking the whole site down with it.
+        # single synchronous worker, so waiting and then compiling could run two
+        # long operations inside one request and have the worker killed — taking
+        # the whole site down with it.
         raise LatexCompileError(
             'The CV is already being rebuilt. Please try again in a moment.'
         )
 
     try:
-        pdf = compile_latex(source, engine=engine)
-        cache.set(key, pdf, timeout=settings.RESUME_LATEX_CACHE_SECONDS)
-        return pdf
+        compilation = compile_latex(source, engine=engine)
+        if compilation.pages > 1:
+            # Not fatal — a longer CV is still a CV — but it means the content
+            # budget in settings no longer holds the document to one page, which
+            # is the one thing the design promises. Worth knowing before a
+            # visitor's download is what reveals it.
+            logger.warning(
+                'Generated CV runs to %s pages; lower RESUME_MAX_* to bring it '
+                'back to one.',
+                compilation.pages,
+            )
+        cache.set(
+            key,
+            {'pdf': compilation.pdf, 'pages': compilation.pages},
+            timeout=settings.RESUME_LATEX_CACHE_SECONDS,
+        )
+        return compilation
     finally:
         cache.delete(_lock_key())
 
@@ -621,7 +889,7 @@ def _wait_for_compile(key, deadline, interval=0.5):
     end = time.monotonic() + deadline
     while time.monotonic() < end:
         time.sleep(interval)
-        cached = cache.get(key)
+        cached = _from_entry(cache.get(key))
         if cached is not None:
             return cached
         if not cache.get(_lock_key()):

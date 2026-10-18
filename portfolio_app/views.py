@@ -23,7 +23,7 @@ from .models import (
     Skill,
     WorkExperience,
 )
-from .forms import ContactForm
+from .forms import ContactForm, ResumeOptionsForm
 from .utils import client_ip
 
 logger = logging.getLogger(__name__)
@@ -269,6 +269,60 @@ def resume_view(req):
     })
 
 
+@ratelimit(key='ip', rate='30/h', method='POST', block=False)
+def resume_generator_view(req):
+    """Choose what goes into the CV, then download it.
+
+    The page opens on the same selection the plain download button uses, so the
+    default is the recommended CV rather than an empty form this way round: the
+    visitor changes what they want to differ from the recommendation.
+
+    Submitting renders and compiles the chosen combination and returns it as a
+    download. Nothing is stored — the cache key is the content, so a combination
+    asked for before is served straight from the cache.
+
+    The POST is rate limited because every *new* combination is a full LaTeX
+    compile, which is ~20s on the production Pi and holds the site's only worker.
+    The selections decide the cache key, so varying them is the one way to ask
+    for fresh work each time. The limit is deliberately generous: this is abuse
+    mitigation for a personal site, not a hard quota, and being locked out while
+    tailoring a CV would be worse than the risk.
+    """
+    was_limited = getattr(req, 'limited', False)
+
+    if req.method == 'POST':
+        form = ResumeOptionsForm(req.POST)
+        if not was_limited and form.is_valid():
+            try:
+                compilation = resume_latex.generate_pdf(form.to_options())
+            except resume_latex.ResumeError:
+                logger.exception('Could not generate the CV')
+                return render(req, 'resume_unavailable.html', status=503)
+
+            response = HttpResponse(compilation.pdf, content_type='application/pdf')
+            response['Content-Disposition'] = resume_latex.content_disposition()
+            # Regenerated content is keyed by a hash, so a short private cache is
+            # safe; the browser must not serve one selection for another.
+            response['Cache-Control'] = 'private, no-cache'
+            return response
+    else:
+        form = ResumeOptionsForm(initial=resume_latex.default_selection())
+
+    caps = resume_latex.budget_caps()
+    sections = [
+        {'name': name, 'label': label, 'field': field, 'cap': caps[name]}
+        for name, label, field in form.sections()
+    ]
+    return render(req, 'resume_generator.html', {
+        'form': form,
+        # Each selectable section with its bound field and its cap, so the page
+        # can state the cap. A selection that exceeds one is trimmed to the most
+        # relevant items; that should be visible rather than a surprise.
+        'sections': sections,
+        'rate_limited': was_limited,
+    })
+
+
 def resume_download_view(req):
     """Build the CV from the site's content and send it as a PDF download.
 
@@ -277,7 +331,7 @@ def resume_download_view(req):
     portfolio_app/resume_latex.py for the generation and caching.
     """
     try:
-        pdf = resume_latex.generate_pdf()
+        compilation = resume_latex.generate_pdf()
     except resume_latex.ResumeError:
         # Missing engine, a compile that timed out, or a document that no longer
         # compiles. All are our problem, not the visitor's, and all are more
@@ -285,7 +339,7 @@ def resume_download_view(req):
         logger.exception('Could not generate the CV')
         return render(req, 'resume_unavailable.html', status=503)
 
-    response = HttpResponse(pdf, content_type='application/pdf')
+    response = HttpResponse(compilation.pdf, content_type='application/pdf')
     response['Content-Disposition'] = resume_latex.content_disposition()
     # Regenerated content is keyed by a hash, so a short private cache is safe.
     response['Cache-Control'] = 'private, max-age=300'

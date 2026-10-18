@@ -71,7 +71,7 @@ class Command(BaseCommand):
 
         started = time.monotonic()
         try:
-            pdf = resume_latex.generate_pdf(force=options['force'])
+            compilation = resume_latex.generate_pdf(force=options['force'])
         except resume_latex.LatexCompileError as exc:
             # The engine's own output is the only useful thing here; without it
             # a failed compile is just "it did not work".
@@ -81,11 +81,14 @@ class Command(BaseCommand):
         elapsed = time.monotonic() - started
 
         self.stdout.write(
-            self.style.SUCCESS(f'Built a {len(pdf) / 1024:.1f} KB PDF in {elapsed:.1f}s')
+            self.style.SUCCESS(
+                f'Built a {len(compilation.pdf) / 1024:.1f} KB PDF in {elapsed:.1f}s, '
+                f'{compilation.pages} page(s)'
+            )
         )
 
         if options['out']:
-            self._write(options['out'], pdf, 'PDF')
+            self._write(options['out'], compilation.pdf, 'PDF')
 
     def _write(self, path, content, label):
         target = Path(path)

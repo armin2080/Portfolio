@@ -402,6 +402,13 @@ class Project(WebPImageMixin, models.Model):
 class Education(models.Model):
     degree = models.CharField(max_length=200, help_text="e.g. Bachelor of Science in Computer Science")
     institution = models.CharField(max_length=200)
+    location = models.CharField(
+        max_length=200, blank=True,
+        help_text=(
+            "Optional. The generated CV shows this next to the dates, the same "
+            "way work experience does. Left blank it is simply omitted."
+        ),
+    )
     description = models.TextField(blank=True)
     start_date = models.DateField()
     end_date = models.DateField(blank=True, null=True)

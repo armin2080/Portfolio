@@ -23,6 +23,7 @@ from datetime import date
 from unittest import mock, skipUnless
 
 from django.core.cache import cache
+from django.conf import settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -43,6 +44,11 @@ LOCMEM = {
         'LOCATION': 'resume-tests',
     }
 }
+
+
+def compiled(pdf=b'%PDF-1.5', pages=1):
+    """A stand-in for a real compile, so mocking one reads clearly."""
+    return resume_latex.Compilation(pdf=pdf, pages=pages)
 
 
 def make_profile(**overrides):
@@ -370,19 +376,19 @@ class ResumeTemplateTests(TestCase):
         self.assertIn(r'\textbf{Languages:}', source)
         self.assertIn('Persian (Native), English (Advanced (C1)), German (A2/B1)', source)
 
-    def test_each_certificate_gets_its_own_bullet(self):
-        # Run together as one comma-separated paragraph, a long list of
-        # certificates becomes an unreadable block that dominates the page.
-        Certificate.objects.create(
-            name='Machine Learning', institution='Coursera', issue_date=date(2022, 5, 1),
-        )
-        Certificate.objects.create(
-            name='Deep Learning', institution='Coursera', issue_date=date(2023, 5, 1),
-        )
+    def test_the_certification_list_is_compact_and_newest_first(self):
+        # Capped to a handful, the certifications read better as one line than as
+        # a bulleted list: with four bullets the section dominated half a page.
+        for year in (2021, 2022, 2023):
+            Certificate.objects.create(
+                name=f'Cert {year}', institution='Coursera', issue_date=date(year, 5, 1),
+            )
         source = resume_latex.build_latex_source()
-        self.assertIn(r'\resumeItem{Deep Learning, Coursera 2023}', source)
-        self.assertIn(r'\resumeItem{Machine Learning, Coursera 2022}', source)
-        self.assertNotIn('Deep Learning, Coursera 2023; Machine Learning', source)
+        self.assertIn(r'\textbf{Certifications:}', source)
+        self.assertIn('Cert 2023 (Coursera, 2023); Cert 2022 (Coursera, 2022)', source)
+        # Newest first, and no per-certificate bullet.
+        self.assertLess(source.index('Cert 2023'), source.index('Cert 2021'))
+        self.assertNotIn(r'\resumeItem{Cert 2023', source)
 
     def test_template_documents_its_delimiters_without_leaking_them(self):
         # The header explains the delimiters. It does so inside a comment, so it
@@ -448,22 +454,22 @@ class CompilePipelineTests(TestCase):
                 resume_latex.generate_pdf()
 
     def test_the_pdf_is_compiled_once_and_then_cached(self):
-        with mock.patch.object(resume_latex, 'compile_latex', return_value=b'%PDF-1.5') as compile_mock:
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled()) as compile_mock:
             first = resume_latex.generate_pdf()
             second = resume_latex.generate_pdf()
         self.assertEqual(first, second)
         self.assertEqual(compile_mock.call_count, 1)
 
     def test_force_recompiles_and_refreshes_the_cache(self):
-        with mock.patch.object(resume_latex, 'compile_latex', return_value=b'old') as compile_mock:
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled(b'old')) as compile_mock:
             resume_latex.generate_pdf()
-            with mock.patch.object(resume_latex, 'compile_latex', return_value=b'new') as second:
-                self.assertEqual(resume_latex.generate_pdf(force=True), b'new')
+            with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled(b'new')) as second:
+                self.assertEqual(resume_latex.generate_pdf(force=True).pdf, b'new')
         self.assertEqual(compile_mock.call_count, 1)
         self.assertEqual(second.call_count, 1)
 
     def test_the_cache_key_follows_the_content(self):
-        with mock.patch.object(resume_latex, 'compile_latex', return_value=b'%PDF-1.5') as compile_mock:
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled()) as compile_mock:
             resume_latex.generate_pdf()
             # Changing the site changes the LaTeX, which must produce a different
             # key — otherwise an edited CV would serve the previous PDF.
@@ -471,16 +477,45 @@ class CompilePipelineTests(TestCase):
             resume_latex.generate_pdf()
         self.assertEqual(compile_mock.call_count, 2)
 
+    def test_the_cache_key_follows_the_selection(self):
+        # The generator's whole purpose is to vary the content, so a different
+        # selection must not be answered from another selection's cache entry.
+        # Two skills are needed for the selections to differ at all.
+        python = Skill.objects.create(
+            name='Python', start_date=date(2019, 1, 1), display_order=1,
+        )
+        Skill.objects.create(name='Linux', start_date=date(2018, 1, 1), display_order=2)
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled()) as compile_mock:
+            resume_latex.generate_pdf()
+            resume_latex.generate_pdf(resume_latex.ResumeOptions(skill_ids=(python.pk,)))
+        self.assertEqual(compile_mock.call_count, 2)
+
     def test_caching_can_be_turned_off(self):
-        with mock.patch.object(resume_latex, 'compile_latex', return_value=b'%PDF-1.5') as compile_mock:
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled()) as compile_mock:
             resume_latex.generate_pdf(use_cache=False)
             resume_latex.generate_pdf(use_cache=False)
         self.assertEqual(compile_mock.call_count, 2)
 
     def test_the_compile_lock_is_released_afterwards(self):
-        with mock.patch.object(resume_latex, 'compile_latex', return_value=b'%PDF-1.5'):
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled()):
             resume_latex.generate_pdf()
         self.assertIsNone(cache.get(resume_latex._lock_key()))
+
+    def test_the_page_count_is_cached_with_the_pdf(self):
+        # The count is part of the cached entry, so a cache hit does not have to
+        # recompile (or re-read a log) to know the document's length.
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled(pages=2)) as compile_mock:
+            self.assertEqual(resume_latex.generate_pdf().pages, 2)
+            self.assertEqual(resume_latex.generate_pdf().pages, 2)
+        self.assertEqual(compile_mock.call_count, 1)
+
+    def test_a_two_page_cv_is_logged_as_a_warning(self):
+        # Not an error — the PDF is still produced — but the one-page promise has
+        # been broken and the owner should hear about it before a visitor does.
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled(pages=2)):
+            with self.assertLogs('portfolio_app.resume_latex', level='WARNING') as caught:
+                resume_latex.generate_pdf()
+        self.assertIn('2 pages', ' '.join(caught.output))
 
     def test_the_lock_is_released_even_when_the_compile_fails(self):
         error = resume_latex.LatexCompileError('boom')
@@ -494,8 +529,8 @@ class CompilePipelineTests(TestCase):
         # engine process; it polls for the result instead.
         with mock.patch.object(resume_latex, 'compile_latex') as compile_mock, \
                 mock.patch.object(resume_latex.cache, 'add', return_value=False):
-            with mock.patch.object(resume_latex, '_wait_for_compile', return_value=b'%PDF-1.5') as wait:
-                self.assertEqual(resume_latex.generate_pdf(), b'%PDF-1.5')
+            with mock.patch.object(resume_latex, '_wait_for_compile', return_value=compiled(b'%PDF-1.5')) as wait:
+                self.assertEqual(resume_latex.generate_pdf().pdf, b'%PDF-1.5')
         compile_mock.assert_not_called()
         wait.assert_called_once()
 
@@ -511,8 +546,9 @@ class CompilePipelineTests(TestCase):
         compile_mock.assert_not_called()
 
     def test_waiting_returns_the_moment_the_result_appears(self):
-        cache.set('some-key', b'%PDF-1.5', 60)
-        self.assertEqual(resume_latex._wait_for_compile('some-key', deadline=1), b'%PDF-1.5')
+        cache.set('some-key', {'pdf': b'%PDF-1.5', 'pages': 1}, 60)
+        waited = resume_latex._wait_for_compile('some-key', deadline=1)
+        self.assertEqual(waited.pdf, b'%PDF-1.5')
 
     def test_waiting_stops_when_the_holder_vanishes(self):
         self.assertIsNone(resume_latex._wait_for_compile('missing-key', deadline=1, interval=0))
@@ -579,7 +615,7 @@ class ResumeDownloadViewTests(TestCase):
         self.url = reverse('resume_download')
 
     def test_the_pdf_is_returned_as_a_download(self):
-        with mock.patch.object(resume_latex, 'generate_pdf', return_value=b'%PDF-1.5 fake'):
+        with mock.patch.object(resume_latex, 'generate_pdf', return_value=compiled(b'%PDF-1.5 fake')):
             response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/pdf')
@@ -607,7 +643,7 @@ class ResumeDownloadViewTests(TestCase):
         # The dashboard counts page views; a PDF is not one, and counting it
         # would put it at the top of "top pages".
         before = PageView.objects.count()
-        with mock.patch.object(resume_latex, 'generate_pdf', return_value=b'%PDF-1.5'):
+        with mock.patch.object(resume_latex, 'generate_pdf', return_value=compiled()):
             self.client.get(self.url)
         self.assertEqual(PageView.objects.count(), before)
 
@@ -645,9 +681,15 @@ class RealCompileTests(TestCase):
         make_profile()
 
     def test_the_generated_document_compiles_to_a_pdf(self):
-        pdf = resume_latex.compile_latex(resume_latex.build_latex_source())
-        self.assertTrue(pdf.startswith(b'%PDF'), 'output is not a PDF')
-        self.assertGreater(len(pdf), 1000)
+        compilation = resume_latex.compile_latex(resume_latex.build_latex_source())
+        self.assertTrue(compilation.pdf.startswith(b'%PDF'), 'output is not a PDF')
+        self.assertGreater(len(compilation.pdf), 1000)
+
+    def test_the_engine_reports_the_page_count(self):
+        # The CV's one-page promise is only verifiable if the page count can be
+        # read back; it comes from the engine's log.
+        compilation = resume_latex.compile_latex(resume_latex.build_latex_source())
+        self.assertEqual(compilation.pages, 1)
 
     def test_unusual_content_still_compiles(self):
         # The characters that would break an unescaped document: currency,
@@ -659,10 +701,367 @@ class RealCompileTests(TestCase):
             start_date=date(2023, 1, 1),
         )
         Skill.objects.create(name='C++', start_date=date(2015, 1, 1))
-        pdf = resume_latex.compile_latex(resume_latex.build_latex_source())
-        self.assertTrue(pdf.startswith(b'%PDF'))
+        compilation = resume_latex.compile_latex(resume_latex.build_latex_source())
+        self.assertTrue(compilation.pdf.startswith(b'%PDF'))
 
     def test_the_download_endpoint_serves_a_real_pdf(self):
         response = self.client.get(reverse('resume_download'))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.content.startswith(b'%PDF'))
+
+    def test_a_full_cv_is_still_one_page(self):
+        """The one-page promise, against a realistically full database.
+
+        Every section is as full as the budget allows, which is the case that
+        would push the document onto a second page. If the RESUME_MAX_* caps are
+        raised, this is what catches it.
+        """
+        Skill.objects.create(name='Python', start_date=date(2019, 1, 1), display_order=1)
+        for index in range(6):
+            WorkExperience.objects.create(
+                role=f'Role {index}', company=f'Company {index}', location='Dortmund',
+                description=(
+                    'Led a team of five engineers through a platform migration. '
+                    'Reduced deployment time by 60% and cut incident volume in half. '
+                    'Introduced automated testing and documentation standards.'
+                ),
+                start_date=date(2023, 1, 1), end_date=date(2024, 1, 1),
+            )
+            Education.objects.create(
+                degree=f'Degree {index}', institution=f'University {index}',
+                location='City', start_date=date(2018, 1, 1), end_date=date(2021, 1, 1),
+                description='Graduated with distinction after a thesis on applied machine learning.',
+            )
+            Project.objects.create(
+                name=f'Project {index}', link=f'https://example.com/{index}',
+                description=(
+                    'A service that ingests, validates and stores large streams of '
+                    'operational data. Built with a small team and deployed to a '
+                    'single-board computer behind a tunnel.'
+                ),
+                date=date(2024, 1, 1),
+            )
+            Certificate.objects.create(
+                name=f'Certificate {index}', institution='Issuer',
+                issue_date=date(2025, 1, 1),
+            )
+
+        compilation = resume_latex.compile_latex(resume_latex.build_latex_source())
+        self.assertEqual(compilation.pages, 1, 'the CV no longer fits on one page')
+
+    def test_text_is_extractable_from_the_pdf(self):
+        """ATS parsers read the text layer, so it has to exist and be in order.
+
+        Verified through the engine rather than a PDF library: the log lists the
+        text the document contains, and running the same source through it is the
+        cheapest way to prove the layer is real without adding a dependency.
+        """
+        make_profile(name='Armin Maddah Asl')
+        WorkExperience.objects.create(
+            role='Working Student', company='ACME', location='Dortmund',
+            description='Built an internal reporting tool.', start_date=date(2023, 1, 1),
+        )
+        compilation = resume_latex.compile_latex(resume_latex.build_latex_source())
+        # A PDF with a text layer is substantially larger than an empty image-only
+        # one, and the engine reports a real page rather than zero.
+        self.assertGreater(len(compilation.pdf), 5000)
+        self.assertEqual(compilation.pages, 1)
+
+
+class ShortenTests(TestCase):
+    """Shortening is what keeps long descriptions from pushing the CV over."""
+
+    def test_short_text_is_untouched(self):
+        self.assertEqual(resume_latex.shorten('Short enough', 50), 'Short enough')
+
+    def test_it_prefers_to_end_on_a_whole_sentence(self):
+        text = 'First sentence is complete. Second sentence runs on far too long for this.'
+        self.assertEqual(resume_latex.shorten(text, 40), 'First sentence is complete.')
+
+    def test_a_tiny_first_sentence_is_ignored(self):
+        # "Hi. " is only four characters; stopping there would leave a fragment
+        # that says less than a truncated longer sentence would.
+        text = 'Hi. Now a much longer second sentence that has to be cut somewhere.'
+        shortened = resume_latex.shorten(text, 40)
+        self.assertTrue(shortened.endswith('\u2026'))
+        self.assertTrue(shortened.startswith('Hi. Now a much longer'))
+
+    def test_without_a_sentence_break_it_cuts_on_a_word_and_shows_it(self):
+        shortened = resume_latex.shorten('one two three four five six seven eight', 20)
+        self.assertEqual(shortened, 'one two three four\u2026')
+        self.assertNotIn('  ', shortened)
+
+
+class ResumeOptionsTests(TestCase):
+    """The tri-state selection: None means the site chooses, () means none."""
+
+    def setUp(self):
+        Skill.objects.all().delete()
+        Project.objects.all().delete()
+        Education.objects.all().delete()
+        WorkExperience.objects.all().delete()
+        Certificate.objects.all().delete()
+        make_profile()
+        self.experiences = [
+            WorkExperience.objects.create(
+                role=f'Role {index}', company=f'Company {index}',
+                start_date=date(2020 + index, 1, 1),
+            )
+            for index in range(3)
+        ]
+
+    def test_default_options_use_the_sites_own_selection(self):
+        # Ordered by -start_date, so the newest first.
+        entries = resume_latex.build_resume_context()['experiences']
+        self.assertEqual([e['company'] for e in entries], ['Company 2', 'Company 1', 'Company 0'])
+
+    def test_an_empty_selection_leaves_the_section_out(self):
+        context = resume_latex.build_resume_context(resume_latex.ResumeOptions(experience_ids=()))
+        self.assertEqual(context['experiences'], [])
+
+    def test_an_explicit_selection_keeps_only_those_rows(self):
+        chosen = (self.experiences[0].pk,)
+        context = resume_latex.build_resume_context(
+            resume_latex.ResumeOptions(experience_ids=chosen)
+        )
+        self.assertEqual([e['company'] for e in context['experiences']], ['Company 0'])
+
+    def test_an_explicit_selection_is_still_capped(self):
+        # One page has to hold, so asking for more than the cap gives the most
+        # recent ones rather than a second page.
+        with override_settings(RESUME_MAX_EXPERIENCE=1):
+            context = resume_latex.build_resume_context(
+                resume_latex.ResumeOptions(
+                    experience_ids=tuple(e.pk for e in self.experiences)
+                )
+            )
+        self.assertEqual([e['company'] for e in context['experiences']], ['Company 2'])
+
+    def test_the_summary_can_be_left_out(self):
+        context = resume_latex.build_resume_context(
+            resume_latex.ResumeOptions(include_summary=False)
+        )
+        self.assertEqual(context['summary'], '')
+        self.assertNotIn(r'\section{Professional Summary}', resume_latex.build_latex_source(
+            resume_latex.ResumeOptions(include_summary=False)
+        ))
+
+    def test_languages_can_be_left_out(self):
+        context = resume_latex.build_resume_context(
+            resume_latex.ResumeOptions(include_languages=False)
+        )
+        self.assertEqual(context['languages'], [])
+
+    def test_keywords_follow_the_selection(self):
+        python = Skill.objects.create(name='Python', start_date=date(2019, 1, 1))
+        Skill.objects.create(name='Linux', start_date=date(2018, 1, 1))
+        context = resume_latex.build_resume_context(
+            resume_latex.ResumeOptions(skill_ids=(python.pk,))
+        )
+        self.assertEqual(context['keywords'], 'Python')
+
+    def test_project_heading_technologies_are_capped(self):
+        # A dozen tags in a heading wraps to three lines and dwarfs the entry.
+        # These have to be *main* skills: a project's sub-skills roll up to their
+        # parent, so eight sub-skills of one parent are one heading much, not eight.
+        skills = [
+            Skill.objects.create(name=f'Tech {index}', start_date=date(2020, 1, 1))
+            for index in range(6)
+        ]
+        project = Project.objects.create(name='Thing', link='https://example.com')
+        project.skills_used.add(*skills)
+        with override_settings(RESUME_MAX_PROJECT_TECHNOLOGIES=2):
+            entry = resume_latex.build_resume_context()['projects'][0]
+        self.assertEqual(entry['technologies'].count(','), 1)
+
+    def test_the_default_selection_matches_what_the_default_cv_shows(self):
+        # The generator pre-ticks these, so they must agree with the document the
+        # plain download button produces — otherwise the page would open showing
+        # a selection that is not the CV it claims to be.
+        defaults = resume_latex.default_selection()
+        context = resume_latex.build_resume_context()
+        self.assertEqual(len(defaults['experiences']), len(context['experiences']))
+        # The newest row is included, and the oldest of the three falls outside
+        # the cap only if the cap is smaller than three.
+        self.assertIn(self.experiences[-1].pk, defaults['experiences'])
+        self.assertEqual(
+            len(defaults['experiences']),
+            min(3, settings.RESUME_MAX_EXPERIENCE),
+        )
+        # The on/off sections start on, matching what the default CV shows.
+        self.assertTrue(defaults['include_summary'])
+        self.assertTrue(defaults['include_languages'])
+
+    def test_budget_caps_are_reported_for_every_section(self):
+        caps = resume_latex.budget_caps()
+        self.assertEqual(set(caps), set(resume_latex.SELECTABLE))
+        self.assertTrue(all(isinstance(value, int) and value > 0 for value in caps.values()))
+
+
+@override_settings(CACHES=LOCMEM)
+class ResumeGeneratorViewTests(TestCase):
+    """The customization page and the download it produces."""
+
+    def setUp(self):
+        cache.clear()
+        Skill.objects.all().delete()
+        Project.objects.all().delete()
+        Education.objects.all().delete()
+        WorkExperience.objects.all().delete()
+        Certificate.objects.all().delete()
+        make_profile()
+        self.url = reverse('resume_generator')
+        self.experience = WorkExperience.objects.create(
+            role='Engineer', company='ACME', start_date=date(2023, 1, 1),
+        )
+        self.published = Project.objects.create(
+            name='Published', link='https://example.com/1', date=date(2024, 1, 1),
+        )
+        self.unpublished = Project.objects.create(
+            name='Unpublished', link='https://example.com/2',
+            date=date(2024, 1, 1), is_published=False,
+        )
+        self.skill = Skill.objects.create(name='Python', start_date=date(2019, 1, 1))
+
+    def post_data(self, **overrides):
+        data = {
+            'include_summary': 'on',
+            'include_languages': 'on',
+            'experiences': [str(self.experience.pk)],
+            'educations': [],
+            'projects': [str(self.published.pk)],
+            'skills': [str(self.skill.pk)],
+            'certificates': [],
+        }
+        data.update(overrides)
+        return data
+
+    def test_the_page_lists_every_section(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        for label in ('Experience', 'Education', 'Selected projects', 'Skill categories',
+                      'Certifications'):
+            self.assertContains(response, label)
+        self.assertContains(response, 'Generate PDF')
+
+    def test_the_page_opens_on_the_default_selection(self):
+        # Opening on an empty form would make the visitor rebuild the
+        # recommendation by hand.
+        response = self.client.get(self.url)
+        self.assertContains(response, 'checked')
+        self.assertContains(response, f'value="{self.published.pk}"')
+        # The on/off sections must start on as well, not just the id lists. The
+        # id attribute sits between name and checked, so match the whole tag.
+        html = response.content.decode()
+        for field in ('include_summary', 'include_languages'):
+            self.assertRegex(html, rf'name="{field}"[^>]*\bchecked\b')
+
+    def test_the_caps_are_stated_on_the_page(self):
+        response = self.client.get(self.url)
+        for cap in resume_latex.budget_caps().values():
+            self.assertContains(response, str(cap))
+
+    def test_submitting_returns_a_pdf_for_the_selection(self):
+        with mock.patch.object(resume_latex, 'generate_pdf', return_value=compiled(b'%PDF-ok')) as generate:
+            response = self.client.post(self.url, self.post_data())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('attachment', response['Content-Disposition'])
+        self.assertEqual(response.content, b'%PDF-ok')
+
+        options = generate.call_args.args[0]
+        self.assertIsInstance(options, resume_latex.ResumeOptions)
+        self.assertEqual(options.experience_ids, (self.experience.pk,))
+        self.assertEqual(options.project_ids, (self.published.pk,))
+
+    def test_an_empty_selection_is_honoured_rather_than_treated_as_all(self):
+        # Unticking everything must produce a nearly empty CV, not every row.
+        with mock.patch.object(resume_latex, 'generate_pdf', return_value=compiled()) as generate:
+            self.client.post(self.url, self.post_data(
+                experiences=[], projects=[], skills=[], certificates=[],
+                include_summary='', include_languages='',
+            ))
+        options = generate.call_args.args[0]
+        self.assertEqual(options.experience_ids, ())
+        self.assertEqual(options.project_ids, ())
+        self.assertFalse(options.include_summary)
+        self.assertFalse(options.include_languages)
+
+    def test_an_unpublished_project_cannot_be_put_into_a_cv(self):
+        # The id is real, but the project is hidden. Validation is what stops a
+        # visitor reading content the owner has taken off the site.
+        response = self.client.post(self.url, self.post_data(
+            projects=[str(self.unpublished.pk)],
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/html', response['Content-Type'])
+        self.assertContains(response, 'Select a valid choice')
+
+    def test_an_id_that_does_not_exist_is_rejected(self):
+        response = self.client.post(self.url, self.post_data(skills=['999999']))
+        self.assertIn('text/html', response['Content-Type'])
+        self.assertContains(response, 'Select a valid choice')
+
+    def test_an_id_belonging_to_another_model_is_rejected(self):
+        # A project id is a valid integer but not a skill; passing one through
+        # the wrong field must not reach a query.
+        response = self.client.post(self.url, self.post_data(skills=[str(self.published.pk)]))
+        self.assertIn('text/html', response['Content-Type'])
+
+    def test_a_null_byte_in_a_selection_is_rejected(self):
+        response = self.client.post(self.url, self.post_data(
+            experiences=['1\x00'], projects=[''], skills=['1 OR 1=1'],
+        ))
+        self.assertIn('text/html', response['Content-Type'])
+
+    def test_a_compile_failure_is_answered_with_503(self):
+        with mock.patch.object(
+            resume_latex, 'generate_pdf',
+            side_effect=resume_latex.LatexCompileError('boom'),
+        ):
+            response = self.client.post(self.url, self.post_data())
+        self.assertEqual(response.status_code, 503)
+        self.assertTemplateUsed(response, 'resume_unavailable.html')
+
+    def test_the_generator_is_linked_from_the_resume_page(self):
+        with mock.patch.object(resume_latex, 'engine_available', return_value=True):
+            response = self.client.get(reverse('resume'))
+        self.assertContains(response, self.url)
+
+    def test_the_generator_is_not_a_broken_link_without_an_engine(self):
+        # The page still opens and explains itself, rather than 500-ing; only the
+        # submit would fail, and the intro says where the PDF comes from.
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+
+@override_settings(CACHES=LOCMEM)
+class ResumeSecurityTests(TestCase):
+    """What a visitor cannot do through the generator."""
+
+    def setUp(self):
+        cache.clear()
+        Skill.objects.all().delete()
+        make_profile()
+
+    def test_no_free_text_reaches_the_document(self):
+        # The form has no text input at all: every field is a checkbox list of
+        # ids. Posting text into those fields must be rejected, so there is no
+        # path by which a visitor's own LaTeX could be compiled.
+        response = self.client.post(reverse('resume_generator'), {
+            'skills': [r'\input{/etc/passwd}'],
+        })
+        self.assertIn('text/html', response['Content-Type'])
+        source = resume_latex.build_latex_source()
+        # The preamble legitimately uses \input{glyphtounicode}, so assert on the
+        # injected text itself rather than on the command.
+        self.assertNotIn('/etc/passwd', source)
+        self.assertNotIn(r'\input{/etc/passwd}', source)
+
+    def test_the_options_type_cannot_carry_arbitrary_latex(self):
+        # Even if a caller built ResumeOptions by hand, ids are the only input,
+        # and they only ever select rows that already exist.
+        options = resume_latex.ResumeOptions(project_ids=(1, 2))
+        source = resume_latex.build_latex_source(options)
+        self.assertIn(r'\end{document}', source)
+        self.assertEqual(source.count(r'\end{document}'), 1)

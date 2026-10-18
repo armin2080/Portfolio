@@ -456,8 +456,9 @@ class ProjectAdmin(admin.ModelAdmin):
 
 @admin.register(Education)
 class EducationAdmin(admin.ModelAdmin):
-    list_display = ('degree', 'institution', 'start_date', 'end_date')
+    list_display = ('degree', 'institution', 'location', 'start_date', 'end_date')
     search_fields = ('degree', 'institution')
+    list_filter = ('location',)
 
 
 @admin.register(WorkExperience)

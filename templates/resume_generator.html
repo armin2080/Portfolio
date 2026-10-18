@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block title %}Resume Generator{% endblock %}
+{% block meta_description %}Build a one-page CV from this portfolio's own content: choose the roles, projects, skills, and certifications to include, then download it as a PDF.{% endblock %}
+
+{% block content %}
+<section id="resume-generator" class="bg-page text-heading py-16">
+    <div class="container mx-auto px-4 md:px-8">
+
+        <!-- Intro -->
+        <header class="bg-primary text-inverse rounded-lg shadow-sm p-8 mb-8 max-w-4xl mx-auto">
+            <h1 class="text-3xl md:text-4xl font-bold mb-2">Resume Generator</h1>
+            <p class="text-base md:text-lg text-accent">
+                Build a one-page CV from the content on this site. Choose what to
+                include, then generate the PDF.
+            </p>
+            <p class="mt-4 text-sm opacity-90 max-w-2xl">
+                Every wording comes from this portfolio — nothing is invented and
+                nothing is stored. The result is a single-column, A4, text-based
+                PDF that applicant tracking systems can read.
+            </p>
+            <div class="mt-6">
+                <a href="{% url 'resume' %}" class="text-sm underline hover:text-accent transition-colors">
+                    Back to the resume page
+                </a>
+            </div>
+        </header>
+
+        {% if rate_limited %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded max-w-4xl mx-auto mb-6" role="alert">
+            <strong>Too many PDFs generated.</strong>
+            Each new combination has to be typeset, which is slow on this server.
+            Please try again in a little while, or use the
+            <a href="{% url 'resume_download' %}" class="underline">standard CV</a>.
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{% url 'resume_generator' %}" class="max-w-4xl mx-auto">
+            {% csrf_token %}
+
+            <!-- Overview -->
+            <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-6">
+                <h2 class="text-2xl font-bold section-title mb-1">Professional Summary</h2>
+                <div class="w-12 h-1 bg-emphasis mb-6"></div>
+                <div class="space-y-3">
+                    <label class="flex items-start gap-3 text-ink cursor-pointer">
+                        {{ form.include_summary }}
+                        <span>Include the professional summary</span>
+                    </label>
+                    <label class="flex items-start gap-3 text-ink cursor-pointer">
+                        {{ form.include_languages }}
+                        <span>Include languages</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- One panel per selectable section -->
+            {% for section in sections %}
+            <section class="bg-surface rounded-lg border border-border shadow-sm p-8 mb-6">
+                <h2 class="text-2xl font-bold section-title mb-1">{{ section.label }}</h2>
+                <div class="w-12 h-1 bg-emphasis mb-2"></div>
+                <p class="text-sm text-muted mb-6">
+                    Up to <span class="font-mono text-heading">{{ section.cap }}</span> are
+                    listed, most relevant first. Deselect to narrow the CV; select more
+                    than the limit and the most recent are used.
+                </p>
+
+                {% if section.field.errors %}
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+                    {{ section.field.errors }}
+                </div>
+                {% endif %}
+
+                <fieldset class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <legend class="sr-only">{{ section.label }}</legend>
+                    {% for checkbox in section.field %}
+                    <label class="flex items-start gap-3 text-ink cursor-pointer">
+                        {{ checkbox.tag }}
+                        <span>{{ checkbox.choice_label }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="text-sm text-muted">Nothing available for this section yet.</p>
+                    {% endfor %}
+                </fieldset>
+            </section>
+            {% endfor %}
+
+            <div class="flex flex-col sm:flex-row items-center gap-4">
+                <button type="submit"
+                        class="btn-primary bg-emphasis hover:bg-opacity-90 text-inverse px-6 py-3 rounded-md font-medium inline-flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"></path>
+                    </svg>
+                    Generate PDF
+                </button>
+                <a href="{% url 'resume_download' %}" class="text-sm text-muted hover:text-heading transition-colors">
+                    Or download the standard CV
+                </a>
+            </div>
+        </form>
+
+    </div>
+</section>
+{% endblock %}

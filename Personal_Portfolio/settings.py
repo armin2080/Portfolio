@@ -236,16 +236,18 @@ ANALYTICS_RETENTION_DAYS = int(os.environ.get('ANALYTICS_RETENTION_DAYS', '180')
 # over a system pdflatex.
 RESUME_LATEX_ENGINE = os.environ.get('RESUME_LATEX_ENGINE', '')
 
-# Hard limit on one compile. This MUST stay below GUNICORN_TIMEOUT (30s in
-# gunicorn_config.py): the production site runs a single synchronous worker, so
-# a compile that outlives the worker timeout gets the worker killed and takes
-# the whole site down with it, rather than just failing one download.
-RESUME_LATEX_TIMEOUT = int(os.environ.get('RESUME_LATEX_TIMEOUT', '20'))
+# Hard limit on one compile. This MUST stay below GUNICORN_TIMEOUT: the
+# production site runs a single synchronous worker, so a compile that outlives
+# the worker timeout gets the worker killed and takes the whole site down with
+# it, rather than just failing one download. Measured on the Pi Zero 2 W: a warm
+# compile is ~19-24s, so 45 leaves headroom (gunicorn_config.py and .env.example
+# both use 60 for the worker).
+RESUME_LATEX_TIMEOUT = int(os.environ.get('RESUME_LATEX_TIMEOUT', '45'))
 
 # How long a request waits for a compile that another request already started
-# before giving up. Bounded separately so the worst case for one request stays
-# comfortably inside the Gunicorn timeout.
-RESUME_LATEX_WAIT_SECONDS = int(os.environ.get('RESUME_LATEX_WAIT_SECONDS', '8'))
+# before giving up. Above a full compile, so the waiting request gets the result
+# rather than an error, while staying inside the Gunicorn timeout.
+RESUME_LATEX_WAIT_SECONDS = int(os.environ.get('RESUME_LATEX_WAIT_SECONDS', '40'))
 
 # How long a generated PDF stays cached, keyed by the hash of its source, so it
 # is never stale — this only bounds how often unchanged content is recompiled.
@@ -260,14 +262,46 @@ RESUME_LATEX_CACHE_SECONDS = int(
 # (see SYSTEMD_DEPLOY.md), otherwise the first compile cannot fetch its packages.
 RESUME_LATEX_CACHE_DIR = os.environ.get('RESUME_LATEX_CACHE_DIR', '')
 
-# How many of the most recent projects the CV lists. A CV is a summary; the
-# projects page is the place to see everything.
-RESUME_MAX_PROJECTS = int(os.environ.get('RESUME_MAX_PROJECTS', '4'))
 
-# How many of the most recent certificates the CV lists. This site has several
-# dozen, and listing every one turns the CV into an appendix; the newest are the
-# ones a reader cares about.
-RESUME_MAX_CERTIFICATES = int(os.environ.get('RESUME_MAX_CERTIFICATES', '10'))
+# --- The one-page content budget -------------------------------------------
+#
+# The CV is meant to be a single A4 page. There is more content on the site than
+# fits on one, so these caps are what decide what goes in. They are deliberately
+# plain numbers rather than a "fit to page" loop: a compile costs ~20s on the
+# production Pi (holding the site's only worker), so trying a few variants until
+# one fits would stall the site for a minute.
+#
+# The cost of getting this wrong is a second page, which is visible rather than
+# broken, and `generate_pdf` logs a warning when it happens. `scripts/measure-
+# resume.py` reports the page count for any database, which is how these were
+# tuned against the real content; `tests_resume` asserts one page.
+#
+# The caps apply to an explicit selection too: picking more items than a cap
+# allows trims to the most relevant ones, and the generator page states the caps
+# so the trimming is visible rather than silent.
+
+# How many entries per section. Ordered newest first, or by the admin's
+# display_order for skills.
+RESUME_MAX_EXPERIENCE = int(os.environ.get('RESUME_MAX_EXPERIENCE', '4'))
+RESUME_MAX_EDUCATION = int(os.environ.get('RESUME_MAX_EDUCATION', '2'))
+RESUME_MAX_PROJECTS = int(os.environ.get('RESUME_MAX_PROJECTS', '3'))
+RESUME_MAX_SKILLS = int(os.environ.get('RESUME_MAX_SKILLS', '10'))
+RESUME_MAX_CERTIFICATES = int(os.environ.get('RESUME_MAX_CERTIFICATES', '5'))
+
+# How many technologies a project heading lists. The site shows every tag; a CV
+# heading that wraps to three lines dwarfs the entry it belongs to.
+RESUME_MAX_PROJECT_TECHNOLOGIES = int(
+    os.environ.get('RESUME_MAX_PROJECT_TECHNOLOGIES', '4')
+)
+
+# How many bullets each entry may show, and how long one bullet may be. The first
+# line of a description carries the point; the rest is what pushes the CV onto a
+# second page. The character limit is measured on the text a reader sees, and
+# shortening prefers to stop after a whole sentence.
+RESUME_MAX_EXPERIENCE_BULLETS = int(os.environ.get('RESUME_MAX_EXPERIENCE_BULLETS', '2'))
+RESUME_MAX_EDUCATION_BULLETS = int(os.environ.get('RESUME_MAX_EDUCATION_BULLETS', '1'))
+RESUME_MAX_PROJECT_BULLETS = int(os.environ.get('RESUME_MAX_PROJECT_BULLETS', '1'))
+RESUME_MAX_BULLET_CHARS = int(os.environ.get('RESUME_MAX_BULLET_CHARS', '170'))
 
 
 # GitHub project sync (see portfolio_app/github_sync.py)
