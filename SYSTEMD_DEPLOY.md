@@ -134,18 +134,37 @@ Tectonic (see the README). Three things about the service sandbox matter:
 - **Keep `RESUME_LATEX_TIMEOUT` below `GUNICORN_TIMEOUT`.** The site runs one
   synchronous worker, so a compile that outlives the worker timeout gets the
   worker killed and takes the *whole site* down, not just the download.
+  **Measured on a Pi Zero 2 W: a warm compile is ~19–24 s** (the very first one
+  took 2 m 16 s, because it also downloads the package bundle). `.env.example`
+  therefore sets `RESUME_LATEX_TIMEOUT=45` with `GUNICORN_TIMEOUT=60`.
 
-Warm the cache after installing and after changing content:
+- **Keep `CACHE_LOCATION` out of `/tmp`.** The unit sets `PrivateTmp=true`, so the
+  service gets its own `/tmp`, wiped on every restart — including the nightly
+  06:00 start. With the default `CACHE_LOCATION=/tmp/django_cache` the generated
+  CV is discarded every night (so the first download each morning pays a
+  ~20 s compile), and the cache is invisible from a shell, so `build_resume`
+  cannot pre-warm it at all. Point it at `/var/lib/portfolio/cache`.
+
+The unit template runs the warm-up as an `ExecStartPre` (prefixed with `-`, so a
+missing engine or a document that stops compiling can never stop the service from
+starting). Because the site is stopped nightly and started again at 06:00, that
+also refreshes the cache once a day for free: a pre-warmed cache makes the
+download a cache hit, and a content edit made during the day is picked up the
+next morning. Until then, the first download after an edit pays the compile.
+
+**This matters more than it sounds on this hardware:** a compile holds the only
+worker for ~20 s, during which the rest of the site does not respond. Keeping the
+cache warm is what keeps that from being a visitor's experience.
+
+Warm it by hand after installing and after changing content:
 
 ```bash
 .venv/bin/python manage.py build_resume
 ```
 
-This is the slow step, and the first run also downloads the package bundle. It is
-cheap to re-run afterwards: it compiles only when the content has actually
-changed. A daily timer running it would keep the download a cache hit for the
-first visitor after an edit; **no such timer is installed**, so run it by hand
-after a content change, or cancel it out by accepting one slow download.
+The first run also downloads the package bundle into `RESUME_LATEX_CACHE_DIR`
+(~44 MB). Only the compile is slow; a run with nothing changed is a cache hit and
+takes a fraction of a second.
 
 ## Backups
 

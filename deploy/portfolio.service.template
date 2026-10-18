@@ -13,6 +13,12 @@ Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PYTHONUNBUFFERED=1
 ExecStartPre=__PROJECT_DIR__/.venv/bin/python manage.py migrate --noinput
 ExecStartPre=__PROJECT_DIR__/.venv/bin/python manage.py collectstatic --noinput
+# Build the CV into the cache before serving traffic, so a download is a cache
+# hit. A compile takes ~20s on a Raspberry Pi, which is far too long to spend
+# inside a request on a single-worker site. The leading "-" is deliberate: if
+# no LaTeX engine is installed, or a document stops compiling, the service must
+# still start — the warm-up is an optimisation, not a requirement.
+ExecStartPre=-__PROJECT_DIR__/.venv/bin/python manage.py build_resume
 ExecStart=__PROJECT_DIR__/.venv/bin/gunicorn --config gunicorn_config.py Personal_Portfolio.wsgi:application
 Restart=on-failure
 RestartSec=5

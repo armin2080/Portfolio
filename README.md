@@ -406,13 +406,24 @@ nothing is written to `media/` (where `prune_media` would eventually see it as a
 orphan). Only one compile runs at a time: a second request during a compile waits
 for the result rather than starting a competing LaTeX process.
 
-**On the Pi, the timeout matters.** The site runs a single synchronous Gunicorn
-worker with a 30-second timeout, so a compile that outlives it takes the *whole
-site* down rather than failing one download. `RESUME_LATEX_TIMEOUT` (default 20s)
-must stay below `GUNICORN_TIMEOUT`, and Tectonic's package cache needs a writable
-directory — set `RESUME_LATEX_CACHE_DIR` (see [SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md)).
-If the button is missing from the resume page, no engine was found: the page only
-offers the download when a PDF can actually be produced.
+**On the Pi, the timeout and the cache both matter.** The site runs a single
+synchronous Gunicorn worker, so a compile holds the only worker for its whole
+duration and the rest of the site does not respond meanwhile. A warm compile
+measures **~19–24 s** on a Pi Zero 2 W (the first one took 2 m 16 s, because it
+also downloads the package bundle). So:
+
+- `RESUME_LATEX_TIMEOUT` (default 20s) must stay **below** `GUNICORN_TIMEOUT`,
+  otherwise a compile gets the *worker* killed and takes the whole site down
+  rather than failing one download. `.env.example` sets 45 and 60.
+- `CACHE_LOCATION` must **not** be under `/tmp` — the unit sets `PrivateTmp=true`,
+  so the cache would be wiped on every restart and invisible to `build_resume`.
+- Tectonic's package cache needs a writable directory: set
+  `RESUME_LATEX_CACHE_DIR` (see [SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md)).
+
+Keeping the cache warm is what keeps a compile out of a visitor's request. The
+unit warms it at every start, and the nightly 06:00 restart makes that a daily
+refresh. If the button is missing from the resume page, no engine was found: the
+page only offers the download when a PDF can actually be produced.
 
 Languages are not a model on this site, so the CV takes them from a short
 constant in `resume_latex.py` that mirrors the Languages panel on `/resume/`.
