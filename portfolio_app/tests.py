@@ -10,6 +10,7 @@ from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
 from django.core.management import call_command
+from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -23,6 +24,7 @@ from .analytics import (
     visitor_hash,
 )
 from .context_processors import profile_context
+from .middleware import ProxyHeaderMiddleware
 from .models import Category, ContactMessage, PageView, Profile, Project, Skill
 from .templatetags.custom_filters import (
     splitlines,
@@ -219,6 +221,32 @@ class MediaServingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("max-age", response["Cache-Control"])
 
+    def test_non_image_media_is_forced_to_download(self):
+        # Media is served from the site's own origin, so an uploaded .html file
+        # rendered inline would be stored XSS. Uploads are normalised to WebP,
+        # but a non-image FileField must not reopen the hole.
+        with TemporaryDirectory() as tmp:
+            with override_settings(MEDIA_ROOT=tmp):
+                (Path(tmp) / "evil.html").write_text("<script>alert(1)</script>")
+                response = self.client.get("/media/evil.html")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Disposition"], "attachment")
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+
+    def test_images_stay_inline(self):
+        with TemporaryDirectory() as tmp:
+            with override_settings(MEDIA_ROOT=tmp):
+                (Path(tmp) / "photo.webp").write_bytes(b"RIFF....WEBP")
+                response = self.client.get("/media/photo.webp")
+
+        self.assertEqual(response.status_code, 200)
+        # FileResponse labels it "inline"; what matters is that our guard did
+        # not turn it into an attachment.
+        self.assertFalse(response["Content-Disposition"].startswith("attachment"))
+        # The extension decides the type; the browser must not reinterpret it.
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+
 
 @override_settings(CACHES=LOCMEM_CACHE)
 class ContextProcessorTests(TestCase):
@@ -285,6 +313,32 @@ class ClientIPTests(TestCase):
             REMOTE_ADDR="172.71.0.1",
         )
         self.assertEqual(client_ip(request), "172.71.0.1")
+
+    def test_a_direct_client_cannot_spoof_the_cloudflare_header(self):
+        # REMOTE_ADDR is the TCP peer and cannot be forged, so a request that
+        # did not come through Cloudflare must not have its headers believed.
+        request = self._request(
+            HTTP_CF_CONNECTING_IP="1.2.3.4",
+            HTTP_X_FORWARDED_FOR="5.6.7.8",
+            REMOTE_ADDR="203.0.113.7",
+        )
+        self.assertEqual(client_ip(request), "203.0.113.7")
+
+    def test_a_local_reverse_proxy_may_supply_the_header(self):
+        # cloudflared tunnels and nginx connect over loopback; that peer is
+        # trusted even though it is not a Cloudflare edge address.
+        request = self._request(
+            HTTP_CF_CONNECTING_IP="203.0.113.7",
+            REMOTE_ADDR="127.0.0.1",
+        )
+        self.assertEqual(client_ip(request), "203.0.113.7")
+
+    def test_an_ipv4_mapped_ipv6_peer_is_recognised(self):
+        request = self._request(
+            HTTP_CF_CONNECTING_IP="203.0.113.7",
+            REMOTE_ADDR="::ffff:172.71.0.1",
+        )
+        self.assertEqual(client_ip(request), "203.0.113.7")
 
 
 @override_settings(
@@ -598,3 +652,84 @@ class ScrollAnimationTests(SimpleTestCase):
         # No IntersectionObserver, or a thrown error, must show everything.
         self.assertIn('revealAnimatedElements', self.html)
         self.assertIn("'IntersectionObserver' in window", self.html)
+
+
+# ---------------------------------------------------------------------------
+# Proxy trust and transport security
+# ---------------------------------------------------------------------------
+class ProxyHeaderMiddlewareTests(SimpleTestCase):
+    """X-Forwarded-Proto must only be believed when the peer is a proxy."""
+
+    def _scheme(self, **meta):
+        request = RequestFactory().get("/", **meta)
+        middleware = ProxyHeaderMiddleware(
+            lambda req: HttpResponse("secure" if req.is_secure() else "plain")
+        )
+        return middleware(request).content.decode()
+
+    def test_a_forged_header_from_a_direct_client_is_ignored(self):
+        self.assertEqual(
+            self._scheme(
+                REMOTE_ADDR="203.0.113.7",
+                HTTP_X_FORWARDED_PROTO="https",
+            ),
+            "plain",
+        )
+
+    def test_a_header_from_cloudflare_is_used(self):
+        self.assertEqual(
+            self._scheme(
+                REMOTE_ADDR="172.71.0.1",  # Cloudflare edge
+                HTTP_X_FORWARDED_PROTO="https",
+            ),
+            "secure",
+        )
+
+
+class ContentSecurityPolicyTests(TestCase):
+    def test_public_pages_get_a_nonce_based_script_policy(self):
+        response = self.client.get(reverse("index"))
+        policy = response["Content-Security-Policy"]
+
+        self.assertIn("script-src 'self' 'nonce-", policy)
+        self.assertIn("object-src 'none'", policy)
+        self.assertIn("base-uri 'self'", policy)
+        self.assertIn("frame-ancestors 'none'", policy)
+
+        nonce = policy.split("'nonce-")[1].split("'")[0]
+        self.assertIn(f'nonce="{nonce}"', response.content.decode())
+
+    def test_the_contact_page_allows_the_captcha_bootstrap(self):
+        response = self.client.get(reverse("contact"))
+        script_src = response["Content-Security-Policy"].split("script-src")[1]
+        script_src = script_src.split(";")[0]
+
+        self.assertIn("'unsafe-inline'", script_src)
+        self.assertIn("https://www.google.com", script_src)
+
+    def test_the_admin_is_not_locked_out_by_the_nonce(self):
+        response = self.client.get("/admin/login/")
+        self.assertIn(
+            "script-src 'self' 'unsafe-inline'",
+            response["Content-Security-Policy"],
+        )
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+class AdminLoginRateLimitTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def _post(self):
+        return self.client.post(
+            "/admin/login/",
+            {"username": "nobody", "password": "wrong"},
+            REMOTE_ADDR="172.71.0.1",
+            HTTP_CF_CONNECTING_IP="203.0.113.7",
+        )
+
+    def test_repeated_failed_logins_are_throttled(self):
+        for _ in range(5):
+            self.assertNotEqual(self._post().status_code, 429)
+
+        self.assertEqual(self._post().status_code, 429)

@@ -1,12 +1,20 @@
-django>=5.0,<7.0
-django-recaptcha>=4.0
-django-ratelimit>=4.0
-Pillow
-gunicorn
-whitenoise
-python-dotenv
-python-dateutil
+# Pinned so a reinstall on the Pi cannot silently change a major version, and
+# so CI audits the same versions that are deployed. Django stays on the 5.2 LTS
+# (supported until April 2028); moving to 6.x is a deliberate change, not
+# something `pip install -r` should decide during a deploy.
+#
+# Update with: pip install -U <package>, run the test suite and
+# `manage.py check --deploy`, then change the pin here. Dependabot opens PRs,
+# and CI runs pip-audit against the environment installed from this file.
+django==5.2.19
+django-recaptcha==4.1.0
+django-ratelimit==4.1.0
+Pillow==13.0.0
+gunicorn==27.0.1
+whitenoise==6.12.0
+python-dotenv==1.2.4
+python-dateutil==4.0.0
 
 # Renders the CV's LaTeX template (resume/resume.tex). LaTeX collides with
 # Django's template syntax and Django cannot use custom delimiters; Jinja2 can.
-Jinja2>=3.1
+Jinja2==3.1.6

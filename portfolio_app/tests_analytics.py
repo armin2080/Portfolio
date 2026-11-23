@@ -92,6 +92,9 @@ class BotDetectionTests(TestCase):
 
 class CountryTests(TestCase):
     def _request(self, **meta):
+        # A loopback peer is trusted (as a local proxy would be); the explicit
+        # direct-client test below overrides it.
+        meta.setdefault("REMOTE_ADDR", "127.0.0.1")
         request = RequestFactory().get("/")
         request.META.update(meta)
         return request
@@ -111,6 +114,14 @@ class CountryTests(TestCase):
         for value in ("DEU", "D3", "12"):
             with self.subTest(value=value):
                 self.assertEqual(country_from_request(self._request(HTTP_CF_IPCOUNTRY=value)), "")
+
+    def test_a_direct_client_cannot_choose_its_country(self):
+        # The country is analytics data, not security state, but a direct
+        # request should not be able to write an arbitrary value into it.
+        request = self._request(
+            HTTP_CF_IPCOUNTRY="DE", REMOTE_ADDR="203.0.113.7",
+        )
+        self.assertEqual(country_from_request(request), "")
 
 
 class ReferrerTests(TestCase):
@@ -182,7 +193,12 @@ class AnalyticsMiddlewareTests(TestCase):
         return self.client.get(path, **meta)
 
     def test_records_an_anonymous_page_view(self):
-        self._get(reverse("index"), HTTP_CF_IPCOUNTRY="DE")
+        # A Cloudflare edge peer is what makes CF-IPCountry believable.
+        self._get(
+            reverse("index"),
+            HTTP_CF_IPCOUNTRY="DE",
+            REMOTE_ADDR="172.71.0.1",
+        )
 
         view = PageView.objects.get()
         self.assertEqual(view.path, "/")
@@ -327,6 +343,22 @@ class PurgePageViewsTests(TestCase):
         call_command("purge_pageviews", "--days", "5", stdout=StringIO())
 
         self.assertFalse(PageView.objects.filter(pk=stale.pk).exists())
+
+    @override_settings(ANALYTICS_RETENTION_DAYS=180, ANALYTICS_BOT_RETENTION_DAYS=7)
+    def test_crawler_rows_get_a_shorter_retention_window(self):
+        # Crawlers can write thousands of rows a day to an SD-card database,
+        # for statistics that are worth much less than a human view.
+        old_bot = PageView.objects.create(
+            path="/", is_bot=True, viewed_at=timezone.now() - timedelta(days=10),
+        )
+        recent_bot = PageView.objects.create(
+            path="/", is_bot=True, viewed_at=timezone.now() - timedelta(days=2),
+        )
+
+        call_command("purge_pageviews", stdout=StringIO())
+
+        self.assertFalse(PageView.objects.filter(pk=old_bot.pk).exists())
+        self.assertTrue(PageView.objects.filter(pk=recent_bot.pk).exists())
 
 
 # ---------------------------------------------------------------------------

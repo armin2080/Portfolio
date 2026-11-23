@@ -62,9 +62,15 @@ import shutil
 import subprocess
 import tempfile
 import time
+
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - POSIX only; Windows falls back below
+    fcntl = None
 
 from django.conf import settings
 from django.core.cache import cache
@@ -661,9 +667,14 @@ class LatexEngine:
                 '--outdir', str(output_dir), str(source_path),
             ]
         # pdflatex writes its log next to the output by default.
+        # -no-shell-escape is explicit rather than relying on the TeX Live
+        # default: the document is built from database content, and an engine
+        # that can run commands is not worth the risk. Tectonic gets the
+        # equivalent --untrusted above.
         return [
-            self.path, '-interaction=nonstopmode', '-halt-on-error',
-            '-file-line-error', f'-output-directory={output_dir}', str(source_path),
+            self.path, '-no-shell-escape', '-interaction=nonstopmode',
+            '-halt-on-error', '-file-line-error',
+            f'-output-directory={output_dir}', str(source_path),
         ]
 
 
@@ -722,13 +733,24 @@ def engine_available():
 def _compile_environment():
     """Environment for the engine process.
 
+    Deliberately a small allow-list rather than ``os.environ.copy()``. The
+    engine is a large third-party program being fed content that originated in
+    the database; it has no business seeing ``SECRET_KEY``,
+    ``EMAIL_HOST_PASSWORD`` or ``GITHUB_TOKEN``. Only the variables a TeX
+    distribution actually needs to find its binaries and configuration are
+    passed through.
+
     Tectonic keeps the support files it downloads in a cache under the user's
     home directory. The systemd unit that runs the site makes /home read-only
     apart from the project directory, so the location has to be overridable:
     point ``RESUME_LATEX_CACHE_DIR`` at a writable directory (the prune service
     already documents /var/lib/portfolio as the writable one).
     """
-    environment = os.environ.copy()
+    allowed = ('PATH', 'HOME', 'TMPDIR', 'LANG', 'LANGUAGE', 'LC_ALL',
+               'LC_CTYPE', 'TZ', 'SOURCE_DATE_EPOCH')
+    environment = {name: os.environ[name] for name in allowed if name in os.environ}
+    environment.setdefault('PATH', os.defpath)
+
     if settings.RESUME_LATEX_CACHE_DIR:
         environment['TECTONIC_CACHE_DIR'] = settings.RESUME_LATEX_CACHE_DIR
     return environment
@@ -827,8 +849,92 @@ def _cache_key(source, engine):
     return f'resume-pdf:{_CACHE_VERSION}:{engine.name}:{digest}'
 
 
-def _lock_key():
-    return 'resume-pdf:lock'
+# The compile lock is an OS advisory lock, not a cache entry. Django's
+# FileBasedCache implements add() as has_key() followed by set(), which is not
+# atomic: two processes can both think they acquired it and start two engines at
+# once, which is exactly the memory problem the lock exists to prevent. flock()
+# is released by the kernel when the holder dies, so a killed worker cannot
+# leave a lock behind either.
+# The uid keeps a second local account from pre-creating a mode-0600 file at
+# this path in a shared /tmp and making every compile wait on a lock it did not
+# take. The service itself has a private /tmp (PrivateTmp=true), so this only
+# matters on a development machine.
+_LOCK_FILENAME = (
+    f'portfolio-resume-compile-{getattr(os, "getuid", lambda: 0)()}.lock'
+)
+_LOCK_FALLBACK_KEY = 'resume-pdf:lock'
+_BUDGET_KEY = 'resume-pdf:budget'
+
+
+def _lock_path():
+    return Path(tempfile.gettempdir()) / _LOCK_FILENAME
+
+
+def _acquire_compile_lock():
+    """Return a token for the compile lock, or None if another process holds it."""
+    if fcntl is None:  # pragma: no cover - Windows development only
+        if cache.add(
+            _LOCK_FALLBACK_KEY,
+            'compiling',
+            timeout=settings.RESUME_LATEX_TIMEOUT + 30,
+        ):
+            return True
+        return None
+
+    path = _lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        return None
+    return fd
+
+
+def _release_compile_lock(token):
+    if token is None:
+        return
+    if token is True:  # pragma: no cover - Windows development only
+        cache.delete(_LOCK_FALLBACK_KEY)
+        return
+    try:
+        fcntl.flock(token, fcntl.LOCK_UN)
+    finally:
+        os.close(token)
+
+
+def _compile_lock_is_held():
+    """Whether some process is compiling right now."""
+    if fcntl is None:  # pragma: no cover - Windows development only
+        return bool(cache.get(_LOCK_FALLBACK_KEY))
+
+    token = _acquire_compile_lock()
+    if token is None:
+        return True
+    _release_compile_lock(token)
+    return False
+
+
+def _within_compile_budget():
+    """Count this compile against the global hourly ceiling.
+
+    Per-IP limits keep one visitor from occupying the worker; this bounds the
+    total work a request spread over many addresses can cause. ``cache.incr``
+    is not cross-process atomic on Django's file cache, so with more than one
+    worker the count can drift low — it is a backstop, not a security boundary.
+    """
+    limit = settings.RESUME_LATEX_MAX_COMPILES_PER_HOUR
+    if limit <= 0:
+        return True
+
+    try:
+        used = cache.incr(_BUDGET_KEY)
+    except ValueError:
+        # Key not present yet (Django raises ValueError rather than starting at 0).
+        cache.set(_BUDGET_KEY, 1, 3600)
+        used = 1
+    return used <= limit
 
 
 def _from_entry(entry):
@@ -838,7 +944,7 @@ def _from_entry(entry):
     return Compilation(pdf=entry['pdf'], pages=entry['pages'])
 
 
-def generate_pdf(options=None, *, use_cache=True, force=False):
+def generate_pdf(options=None, *, use_cache=True, force=False, enforce_budget=True):
     """Produce the CV PDF, compiling only when the cache cannot answer.
 
     The cache key is a hash of the exact LaTeX source — which is itself a
@@ -854,6 +960,9 @@ def generate_pdf(options=None, *, use_cache=True, force=False):
 
     ``force`` recompiles even when a cached PDF exists, which ``build_resume``
     uses to refresh the cache without waiting for its contents to change.
+    ``enforce_budget`` is disabled by that command: the hourly abuse ceiling is
+    for visitor traffic, and must not stop an operator warming the cache after
+    a restart.
     """
     engine = find_engine()
     if engine is None:
@@ -873,13 +982,11 @@ def generate_pdf(options=None, *, use_cache=True, force=False):
         if cached is not None:
             return cached
 
-    # cache.add() is atomic on the file-based cache, so only one request gets
-    # True and runs the engine. The TTL is a backstop: if a worker is killed
-    # mid-compile the lock would otherwise never be released.
-    holds_lock = cache.add(
-        _lock_key(), 'compiling', timeout=settings.RESUME_LATEX_TIMEOUT + 30
-    )
-    if not holds_lock:
+    # One compile at a time, enforced with an OS lock that a killed worker
+    # cannot leave behind. The TTL-based cache lock this replaced was not
+    # actually atomic on Django's file cache.
+    lock = _acquire_compile_lock()
+    if lock is None:
         pdf = _wait_for_compile(key, deadline=settings.RESUME_LATEX_WAIT_SECONDS)
         if pdf is not None:
             return pdf
@@ -892,6 +999,12 @@ def generate_pdf(options=None, *, use_cache=True, force=False):
         )
 
     try:
+        if enforce_budget and not force and not _within_compile_budget():
+            raise LatexCompileError(
+                'The CV has been rebuilt many times in the last hour. '
+                'Please try again later.'
+            )
+
         compilation = compile_latex(source, engine=engine)
         if compilation.pages > 1:
             # Not fatal — a longer CV is still a CV — but it means the content
@@ -910,7 +1023,7 @@ def generate_pdf(options=None, *, use_cache=True, force=False):
         )
         return compilation
     finally:
-        cache.delete(_lock_key())
+        _release_compile_lock(lock)
 
 
 def _wait_for_compile(key, deadline, interval=0.5):
@@ -926,7 +1039,7 @@ def _wait_for_compile(key, deadline, interval=0.5):
         cached = _from_entry(cache.get(key))
         if cached is not None:
             return cached
-        if not cache.get(_lock_key()):
+        if not _compile_lock_is_held():
             # The holder is gone without leaving a result.
             return None
     return None

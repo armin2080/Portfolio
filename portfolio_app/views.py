@@ -113,6 +113,27 @@ def contact_success(req):
     return render(req, 'success.html')
 
 
+@ratelimit(key='ip', rate='5/m', method='POST', block=False)
+def admin_login_view(req):
+    """The admin login, with a brute-force limit in front of it.
+
+    Django does not throttle failed admin logins itself. This site is behind
+    Cloudflare, but the origin should not depend on that for the one page that
+    guards every edit, so the login gets a per-IP limit too. ``AdminSite.login``
+    is reused as-is, including its ``?next=`` handling.
+    """
+    if getattr(req, 'limited', False):
+        return HttpResponse(
+            'Too many login attempts. Please wait a minute and try again.',
+            status=429,
+            content_type='text/plain',
+        )
+
+    from django.contrib import admin
+
+    return admin.site.login(req)
+
+
 def privacy_view(req):
     """Privacy notice. Required because the site stores contact-form data and
     records anonymous visitor statistics (GDPR Art. 13)."""
@@ -269,7 +290,7 @@ def resume_view(req):
     })
 
 
-@ratelimit(key='ip', rate='30/h', method='POST', block=False)
+@ratelimit(key='ip', rate='5/h', method='POST', block=False)
 def resume_generator_view(req):
     """Choose what goes into the CV, then download it.
 
@@ -284,9 +305,10 @@ def resume_generator_view(req):
     The POST is rate limited because every *new* combination is a full LaTeX
     compile, which is ~20s on the production Pi and holds the site's only worker.
     The selections decide the cache key, so varying them is the one way to ask
-    for fresh work each time. The limit is deliberately generous: this is abuse
-    mitigation for a personal site, not a hard quota, and being locked out while
-    tailoring a CV would be worse than the risk.
+    for fresh work each time. The limit is deliberately strict (five an hour):
+    it is abuse mitigation for a personal site, and a visitor tailoring one CV
+    needs a handful of tries, not thirty. A global hourly ceiling on compiles in
+    ``resume_latex`` backs this up if the requests come from many addresses.
     """
     was_limited = getattr(req, 'limited', False)
 
@@ -323,13 +345,26 @@ def resume_generator_view(req):
     })
 
 
+@ratelimit(key='ip', rate='10/h', method='GET', block=False)
 def resume_download_view(req):
     """Build the CV from the site's content and send it as a PDF download.
 
     Nothing is stored: the PDF is rendered and compiled on demand and kept in
     the cache, so the file a visitor gets always matches the site. See
     portfolio_app/resume_latex.py for the generation and caching.
+
+    Repeated downloads are cache hits and nearly free, but a request that finds
+    the cache cold starts a ~20s compile on the site's only worker, so the
+    endpoint is limited too (the browser's own caching keeps normal use well
+    below this).
     """
+    if getattr(req, 'limited', False):
+        return HttpResponse(
+            'Too many downloads. Please try again in a few minutes.',
+            status=429,
+            content_type='text/plain',
+        )
+
     try:
         compilation = resume_latex.generate_pdf()
     except resume_latex.ResumeError:

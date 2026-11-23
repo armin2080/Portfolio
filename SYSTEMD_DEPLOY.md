@@ -166,6 +166,57 @@ The first run also downloads the package bundle into `RESUME_LATEX_CACHE_DIR`
 (~44 MB). Only the compile is slow; a run with nothing changed is a cache hit and
 takes a fraction of a second.
 
+## Restrict the origin to Cloudflare
+
+The app binds `0.0.0.0:80`, and Cloudflare's proxy protection only covers
+traffic that actually goes through Cloudflare. If the Pi is reachable directly
+(e.g. a port-forward on the router), anyone can bypass the CDN, its WAF and its
+rate limiting. Three independent measures:
+
+1. **The app itself no longer believes proxy headers from a non-proxy peer**
+   (`portfolio_app/utils.py`). A direct client cannot forge `CF-Connecting-IP`,
+   so it gets its real address as its rate-limit bucket. This closes the
+   spoofing hole, but does not stop a direct attacker from reaching the app.
+2. **Firewall port 80 to Cloudflare** (or use a Cloudflare Tunnel and publish
+   no inbound port at all). With `ufw`, the ranges are published at
+   <https://www.cloudflare.com/ips/>:
+
+   ```bash
+   sudo ufw allow ssh        # keep your own access if you manage it remotely
+   sudo ufw default deny incoming
+   for ip in $(curl -fsS https://www.cloudflare.com/ips-v4) \
+             $(curl -fsS https://www.cloudflare.com/ips-v6); do
+       sudo ufw allow from "$ip" to any port 80 proto tcp
+   done
+   sudo ufw enable
+   ```
+
+   Re-run the loop when Cloudflare adds a range. Verify from outside the
+   network that the origin's own address no longer answers:
+
+   ```bash
+   curl --max-time 5 --resolve armin2080.de:80:<origin-ip> http://armin2080.de/
+   ```
+
+   A timeout is the expected result; a page means the firewall is not in place.
+
+3. **Put `/admin/` behind Cloudflare Access** (or an IP allowlist) if you want a
+   second factor without adding a Django dependency. The login already has a
+   5/minute per-IP brute-force limit, but that is mitigation, not authentication.
+
+## Dependency updates
+
+`requirements.txt` is pinned, so `pip install -r` never changes a major version
+on its own. Dependabot opens weekly PRs (Django major versions are excluded on
+purpose); CI runs the tests, `check --deploy` and `pip-audit` against the
+installed set. To apply an update on the Pi:
+
+```bash
+git pull
+.venv/bin/pip install -r requirements.txt
+sudo systemctl restart portfolio
+```
+
 ## Backups
 
 All stateful data lives in `/var/lib/portfolio`:

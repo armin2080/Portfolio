@@ -437,6 +437,9 @@ class EngineDetectionTests(TestCase):
         command = engine.command('resume.tex', '/tmp/out')
         self.assertIn('-interaction=nonstopmode', command)
         self.assertIn('-halt-on-error', command)
+        # Do not rely on the distribution's default for the one place the site
+        # runs an external program over database content.
+        self.assertIn('-no-shell-escape', command)
 
 
 @override_settings(CACHES=LOCMEM)
@@ -447,6 +450,13 @@ class CompilePipelineTests(TestCase):
         cache.clear()
         Skill.objects.all().delete()
         make_profile()
+        # CI has no LaTeX engine. These tests mock the compile step, so the
+        # engine only needs to be discoverable; without this the common
+        # pipeline tests would fail before reaching the code under test.
+        engine = resume_latex.LatexEngine(name='tectonic', path='/bin/tectonic')
+        patcher = mock.patch.object(resume_latex, 'find_engine', return_value=engine)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_a_missing_engine_is_reported_as_such(self):
         with mock.patch.object(resume_latex, 'find_engine', return_value=None):
@@ -499,7 +509,17 @@ class CompilePipelineTests(TestCase):
     def test_the_compile_lock_is_released_afterwards(self):
         with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled()):
             resume_latex.generate_pdf()
-        self.assertIsNone(cache.get(resume_latex._lock_key()))
+        self.assertFalse(resume_latex._compile_lock_is_held())
+
+    def test_only_one_process_can_hold_the_compile_lock(self):
+        first = resume_latex._acquire_compile_lock()
+        self.assertIsNotNone(first)
+        try:
+            self.assertTrue(resume_latex._compile_lock_is_held())
+            self.assertIsNone(resume_latex._acquire_compile_lock())
+        finally:
+            resume_latex._release_compile_lock(first)
+        self.assertFalse(resume_latex._compile_lock_is_held())
 
     def test_the_page_count_is_cached_with_the_pdf(self):
         # The count is part of the cached entry, so a cache hit does not have to
@@ -522,13 +542,13 @@ class CompilePipelineTests(TestCase):
         with mock.patch.object(resume_latex, 'compile_latex', side_effect=error):
             with self.assertRaises(resume_latex.LatexCompileError):
                 resume_latex.generate_pdf()
-        self.assertIsNone(cache.get(resume_latex._lock_key()))
+        self.assertFalse(resume_latex._compile_lock_is_held())
 
     def test_a_second_request_waits_for_the_in_flight_compile(self):
         # Another worker holds the lock. This request must not start a competing
         # engine process; it polls for the result instead.
         with mock.patch.object(resume_latex, 'compile_latex') as compile_mock, \
-                mock.patch.object(resume_latex.cache, 'add', return_value=False):
+                mock.patch.object(resume_latex, '_acquire_compile_lock', return_value=None):
             with mock.patch.object(resume_latex, '_wait_for_compile', return_value=compiled(b'%PDF-1.5')) as wait:
                 self.assertEqual(resume_latex.generate_pdf().pdf, b'%PDF-1.5')
         compile_mock.assert_not_called()
@@ -539,11 +559,29 @@ class CompilePipelineTests(TestCase):
         # operations inside one request, and on the production Pi a compile that
         # outlives the Gunicorn worker timeout takes the whole site down.
         with mock.patch.object(resume_latex, 'compile_latex') as compile_mock, \
-                mock.patch.object(resume_latex.cache, 'add', return_value=False), \
+                mock.patch.object(resume_latex, '_acquire_compile_lock', return_value=None), \
                 mock.patch.object(resume_latex, '_wait_for_compile', return_value=None):
             with self.assertRaises(resume_latex.LatexCompileError):
                 resume_latex.generate_pdf()
         compile_mock.assert_not_called()
+
+    @override_settings(RESUME_LATEX_MAX_COMPILES_PER_HOUR=1)
+    def test_the_hourly_compile_ceiling_stops_a_compile_storm(self):
+        # The per-IP limits bound one visitor; this bounds a request spread
+        # across many addresses. The cache entry is already at the ceiling.
+        cache.set(resume_latex._BUDGET_KEY, 1, 3600)
+        with mock.patch.object(resume_latex, 'compile_latex') as compile_mock:
+            with self.assertRaises(resume_latex.LatexCompileError):
+                resume_latex.generate_pdf()
+        compile_mock.assert_not_called()
+
+    @override_settings(RESUME_LATEX_MAX_COMPILES_PER_HOUR=1)
+    def test_the_management_command_can_warm_the_cache_past_the_ceiling(self):
+        # Startup runs build_resume; an exhausted visitor budget must not leave
+        # the CV cold until the hour rolls over.
+        cache.set(resume_latex._BUDGET_KEY, 1, 3600)
+        with mock.patch.object(resume_latex, 'compile_latex', return_value=compiled()):
+            self.assertEqual(resume_latex.generate_pdf(enforce_budget=False).pages, 1)
 
     def test_waiting_returns_the_moment_the_result_appears(self):
         cache.set('some-key', {'pdf': b'%PDF-1.5', 'pages': 1}, 60)
@@ -554,7 +592,6 @@ class CompilePipelineTests(TestCase):
         self.assertIsNone(resume_latex._wait_for_compile('missing-key', deadline=1, interval=0))
 
     def test_waiting_gives_up_at_the_deadline(self):
-        cache.set(resume_latex._lock_key(), 'compiling', 60)
         self.assertIsNone(resume_latex._wait_for_compile('missing-key', deadline=0))
 
     def test_a_timeout_is_reported_with_the_timeout_value(self):
@@ -586,6 +623,19 @@ class CompilePipelineTests(TestCase):
                 resume_latex._compile_environment()['TECTONIC_CACHE_DIR'],
                 '/var/lib/portfolio/tectonic',
             )
+
+    def test_the_engine_never_sees_the_application_secrets(self):
+        # A third-party binary fed database content has no business receiving
+        # SECRET_KEY, the SMTP password or a GitHub token.
+        with mock.patch.dict(resume_latex.os.environ, {
+            'SECRET_KEY': 'not-for-the-engine',
+            'EMAIL_HOST_PASSWORD': 'not-for-the-engine',
+            'GITHUB_TOKEN': 'not-for-the-engine',
+        }):
+            environment = resume_latex._compile_environment()
+        for name in ('SECRET_KEY', 'EMAIL_HOST_PASSWORD', 'GITHUB_TOKEN'):
+            self.assertNotIn(name, environment)
+        self.assertIn('PATH', environment)
 
 
 class DownloadFilenameTests(TestCase):

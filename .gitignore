@@ -11,6 +11,8 @@ db.sqlite3
 
 # Environment and runtime files
 .env
+# Generated once for local development when no SECRET_KEY is set.
+.django-secret-key
 *.log
 /staticfiles/
 

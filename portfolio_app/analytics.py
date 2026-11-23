@@ -18,6 +18,8 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.utils import timezone
 
+from .utils import is_trusted_proxy
+
 # Requests from these are not people. Kept deliberately broad: a link-preview
 # fetcher or monitoring probe would otherwise inflate the numbers.
 _BOT_PATTERN = re.compile(
@@ -98,8 +100,14 @@ def country_from_request(request):
     """ISO 3166-1 alpha-2 country from Cloudflare, or '' when unknown.
 
     Cloudflare adds ``CF-IPCountry`` on every request, so no GeoIP database is
-    needed on the server. Returns '' for Cloudflare's unknown markers.
+    needed on the server. Returns '' for Cloudflare's unknown markers, and for
+    a request whose direct peer is not a trusted proxy — otherwise a client
+    reaching the origin directly could write a country of its choosing into the
+    dashboard.
     """
+    if not is_trusted_proxy(request):
+        return ''
+
     country = (request.META.get('HTTP_CF_IPCOUNTRY') or '').strip().upper()
     if country in _UNKNOWN_COUNTRIES:
         return ''

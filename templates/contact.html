@@ -90,7 +90,7 @@
 
     </div>
 </section>
-<script>
+<script nonce="{{ request.csp_nonce }}">
     document.addEventListener("DOMContentLoaded", function () {
         const emailElement = document.getElementById("emailAddress");
         if (emailElement) {

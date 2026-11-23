@@ -15,6 +15,7 @@ import hashlib
 import os
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
+from django.core.management.utils import get_random_secret_key
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -40,7 +41,25 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     if DEBUG:
-        SECRET_KEY = 'REDACTED'
+        # Development only. A generated key is kept in a git-ignored file rather
+        # than in this repository, so no secret-shaped value is committed, while
+        # the admin login still survives an autoreload. Production never gets
+        # here: DEBUG must be False and a real key is required.
+        _dev_key_file = BASE_DIR / '.django-secret-key'
+        try:
+            SECRET_KEY = _dev_key_file.read_text(encoding='utf-8').strip()
+        except (OSError, UnicodeError):
+            # Missing, unreadable (e.g. a read-only checkout) or corrupt.
+            SECRET_KEY = ''
+        if not SECRET_KEY:
+            SECRET_KEY = get_random_secret_key()
+            try:
+                _dev_key_file.write_text(SECRET_KEY, encoding='utf-8')
+                os.chmod(_dev_key_file, 0o600)
+            except OSError:
+                # Read-only checkout: the in-memory key still works for this
+                # process; only the convenience of surviving a reload is lost.
+                pass
     else:
         raise ImproperlyConfigured(
             "SECRET_KEY environment variable is required when DEBUG is False. "
@@ -58,8 +77,10 @@ CSRF_TRUSTED_ORIGINS = [
 # Canonical site origin, used for canonical/Open Graph URLs and robots.txt.
 SITE_URL = os.environ.get('SITE_URL', 'https://armin2080.de').rstrip('/')
 
-# Help Django understand it's behind a proxy (Cloudflare)
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# Django's SECURE_PROXY_SSL_HEADER is deliberately NOT set: it trusts
+# X-Forwarded-Proto from anyone who can reach the origin. ProxyHeaderMiddleware
+# sets the scheme instead, and only when the direct peer is Cloudflare (or a
+# local reverse proxy). See portfolio_app/middleware.py.
 
 
 # Application definition
@@ -77,6 +98,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Must precede SecurityMiddleware: it must decide whether X-Forwarded-Proto
+    # may be believed before SecurityMiddleware does the HTTPS redirect and HSTS.
+    'portfolio_app.middleware.ProxyHeaderMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -87,6 +111,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Must come after AuthenticationMiddleware so it can skip staff requests.
     'portfolio_app.middleware.PageViewMiddleware',
+    # Last, so it sees the final response, and its nonce is set before rendering.
+    'portfolio_app.middleware.ContentSecurityPolicyMiddleware',
 ]
 
 ROOT_URLCONF = 'Personal_Portfolio.urls'
@@ -204,9 +230,13 @@ CACHES = {
 # Resolve the real client IP instead — see portfolio_app/utils.client_ip.
 RATELIMIT_IP_META_KEY = 'portfolio_app.utils.client_ip'
 
-# Whether to trust CF-Connecting-IP / X-Forwarded-For when identifying a client.
-# Only enable this when the app is reachable exclusively through the proxy:
-# otherwise a client can spoof the header to dodge the contact form rate limit.
+# Whether a proxy in front of the app may supply the visitor's address.
+# Even when True, portfolio_app.utils.is_trusted_proxy() checks that the direct
+# peer is Cloudflare (or loopback for a local reverse proxy / Cloudflare Tunnel)
+# before believing CF-Connecting-IP or X-Forwarded-For. A client that reaches
+# the origin directly cannot forge its TCP peer address, so it cannot spoof a
+# fresh rate-limit bucket. Set False only if you also want to ignore proxy
+# headers from Cloudflare itself.
 TRUST_PROXY_HEADERS = os.environ.get('TRUST_PROXY_HEADERS', 'True') == 'True'
 
 
@@ -225,6 +255,14 @@ if not ANALYTICS_SALT:
 # Page views older than this are removed by `manage.py purge_pageviews`
 # (installed as a daily systemd timer — see SYSTEMD_DEPLOY.md).
 ANALYTICS_RETENTION_DAYS = int(os.environ.get('ANALYTICS_RETENTION_DAYS', '180'))
+
+# Crawler hits are recorded (flagged) so the dashboard can show them, but they
+# are worth far less than human views: a crawler can generate thousands of rows
+# a day, and this database lives on an SD card. They are therefore kept for a
+# shorter window than real traffic.
+ANALYTICS_BOT_RETENTION_DAYS = int(
+    os.environ.get('ANALYTICS_BOT_RETENTION_DAYS', '7')
+)
 
 
 # CV generated from the site's own content (see portfolio_app/resume_latex.py)
@@ -248,6 +286,15 @@ RESUME_LATEX_TIMEOUT = int(os.environ.get('RESUME_LATEX_TIMEOUT', '45'))
 # before giving up. Above a full compile, so the waiting request gets the result
 # rather than an error, while staying inside the Gunicorn timeout.
 RESUME_LATEX_WAIT_SECONDS = int(os.environ.get('RESUME_LATEX_WAIT_SECONDS', '40'))
+
+# A global ceiling on compiles per hour, across all visitors. The per-IP rate
+# limits on the two CV views stop one source from occupying the site's only
+# worker; this is the backstop for a request spread across many addresses.
+# Cache hits do not count, and the trusted `build_resume` command bypasses it,
+# so the startup warm-up is never refused. Set to 0 to disable the ceiling.
+RESUME_LATEX_MAX_COMPILES_PER_HOUR = int(
+    os.environ.get('RESUME_LATEX_MAX_COMPILES_PER_HOUR', '12')
+)
 
 # How long a generated PDF stays cached, keyed by the hash of its source, so it
 # is never stale — this only bounds how often unchanged content is recompiled.

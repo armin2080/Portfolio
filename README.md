@@ -103,7 +103,10 @@ they are missing or still set to the `.env.example` placeholders.
 The rate limit (3 messages per hour) is applied per **visitor**, using the real
 client IP from `CF-Connecting-IP` rather than `REMOTE_ADDR` — behind Cloudflare
 the latter is the proxy's address, which would otherwise make the limit apply to
-the whole site at once. See `TRUST_PROXY_HEADERS` in `.env.example`.
+the whole site at once. Proxy headers are only believed when the direct peer is a
+Cloudflare edge address (or loopback, for a local proxy or Cloudflare Tunnel), so
+a client that reaches the origin directly cannot spoof them. See
+`TRUST_PROXY_HEADERS` in `.env.example` and `portfolio_app/utils.py`.
 
 ### Themes
 
@@ -145,6 +148,23 @@ Fonts are **self-hosted** (`static/fonts/`, three variable families, ~130 KB).
 No request is made to Google, so there is no third-party transfer to disclose —
 which is why the privacy notice no longer mentions Google Fonts.
 
+### Security and abuse limits
+
+- **Proxy headers are peer-checked.** `CF-Connecting-IP`, `X-Forwarded-For` and
+  `X-Forwarded-Proto` are only read when the TCP peer is a Cloudflare edge
+  address or loopback. Reaching the origin directly therefore cannot forge an
+  address to dodge a rate limit, or pretend a plain-HTTP request is HTTPS.
+- **A Content-Security-Policy with a per-request nonce** is sent on public
+  pages; admin and the reCAPTCHA-bearing contact page allow inline scripts but
+  still block other origins, framing, `<base>` rewriting and plugins.
+- **The admin login is rate limited** (5 POSTs/minute per visitor). Django does
+  not throttle failed logins itself; see [SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md)
+  for putting Cloudflare Access in front of `/admin/` as well.
+- **Uploaded media is not rendered inline** unless it is an image or PDF, so a
+  non-image upload cannot become same-origin HTML/JS.
+- **Dependencies are pinned**, audited by `pip-audit` in CI, and updated through
+  Dependabot PRs rather than by whatever a reinstall happens to resolve.
+
 ### Visitor statistics
 
 A private dashboard at `/dashboard/` shows page views, unique visitors, top
@@ -163,7 +183,8 @@ It is deliberately built to avoid needing a cookie consent banner:
 - **Bots and crawlers** are detected and excluded from the figures.
 - **No data leaves the server.** There is no third-party analytics service.
 - **Retention:** page views older than `ANALYTICS_RETENTION_DAYS` (default 180)
-  are deleted by a daily systemd timer, or manually:
+  are deleted by a daily systemd timer; flagged crawler rows are kept for the
+  much shorter `ANALYTICS_BOT_RETENTION_DAYS` (default 7). Purge manually with:
 
   ```bash
   .venv/bin/python manage.py purge_pageviews --dry-run   # see what would go
@@ -432,7 +453,12 @@ ids, validated against the very querysets the CV builds from
 (`resume_latex.SELECTABLE`). An id for an unpublished project, or for a different
 model, is a validation error rather than something that reaches a query — so
 there is no path by which a visitor's own LaTeX could be compiled. The POST is
-rate limited (generously) because each *new* combination is a full compile.
+rate limited (five per hour per visitor, because each *new* combination is a full
+compile), the plain download endpoint is limited too, and a global
+`RESUME_LATEX_MAX_COMPILES_PER_HOUR` ceiling bounds the work a request spread
+across many addresses can cause. Cache hits do not count against either limit,
+and the trusted `build_resume` command bypasses the global ceiling so a restart
+can always warm the cache.
 
 The sections the form offers are the site's own two-level skill tree and its
 models, not a second hand-written taxonomy — "skill categories" are the main
@@ -450,7 +476,7 @@ duration and the rest of the site does not respond meanwhile. A warm compile
 measures **~19–24 s** on a Pi Zero 2 W (the first one took 2 m 16 s, because it
 also downloads the package bundle). So:
 
-- `RESUME_LATEX_TIMEOUT` (default 20s) must stay **below** `GUNICORN_TIMEOUT`,
+- `RESUME_LATEX_TIMEOUT` (default 45s) must stay **below** `GUNICORN_TIMEOUT`,
   otherwise a compile gets the *worker* killed and takes the whole site down
   rather than failing one download. `.env.example` sets 45 and 60.
 - `CACHE_LOCATION` must **not** be under `/tmp` — the unit sets `PrivateTmp=true`,

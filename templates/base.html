@@ -45,7 +45,7 @@
     <style>{{ theme.css_variables|safe }}</style>
     {% endif %}
 
-    <script>
+    <script nonce="{{ request.csp_nonce }}">
         // Apply the saved colour scheme before first paint to avoid a flash of
         // light mode. Switching swaps the Theme's `.dark` palette variables.
         if (localStorage.getItem('dark-mode') === 'true') {
@@ -163,7 +163,7 @@
         </footer>
     </div>
 
-    <script>
+    <script nonce="{{ request.csp_nonce }}">
         // ─── Mobile menu toggle ─────────────────────────────
         const mobileMenuButton = document.getElementById('mobile-menu-button');
         const mobileMenu = document.getElementById('mobile-menu');

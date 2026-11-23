@@ -71,7 +71,9 @@ class Command(BaseCommand):
 
         started = time.monotonic()
         try:
-            compilation = resume_latex.generate_pdf(force=options['force'])
+            compilation = resume_latex.generate_pdf(
+                force=options['force'], enforce_budget=False,
+            )
         except resume_latex.LatexCompileError as exc:
             # The engine's own output is the only useful thing here; without it
             # a failed compile is just "it did not work".

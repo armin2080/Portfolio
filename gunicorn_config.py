@@ -26,7 +26,11 @@ proc_name = "portfolio_gunicorn"
 # Server mechanics
 daemon = False
 pidfile = None
-umask = 0
+# 0 would make every file the worker creates world-readable/writable (umask 0
+# is Gunicorn's default, and it includes the control socket). The app only ever
+# writes its own cache, uploads and lock file, but there is no reason for them
+# to be group- or world-accessible.
+umask = 0o077
 user = None
 group = None
 tmp_upload_dir = None
