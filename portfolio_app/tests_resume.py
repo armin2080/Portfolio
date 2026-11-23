@@ -556,7 +556,7 @@ class CompilePipelineTests(TestCase):
 
     def test_giving_up_on_the_wait_is_an_error_not_two_compiles(self):
         # Waiting and then compiling anyway would risk running two long
-        # operations inside one request, and on the production Pi a compile that
+        # operations inside one request, and on a production server a compile that
         # outlives the Gunicorn worker timeout takes the whole site down.
         with mock.patch.object(resume_latex, 'compile_latex') as compile_mock, \
                 mock.patch.object(resume_latex, '_acquire_compile_lock', return_value=None), \

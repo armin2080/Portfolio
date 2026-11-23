@@ -1,14 +1,14 @@
 import os
 
 # Gunicorn configuration file
-# Optimized for low-memory devices (e.g., Raspberry Pi with 512MB RAM)
+# Optimized for low-memory servers
 
 # Server socket
 bind = os.getenv("GUNICORN_BIND", "0.0.0.0:80")
 backlog = 512
 
 # Worker processes
-# Reduced for low-memory devices (e.g., Raspberry Pi with 512MB RAM)
+# One worker keeps memory use low on a small server
 workers = int(os.getenv("GUNICORN_WORKERS", "1"))
 worker_class = "sync"
 worker_connections = 500

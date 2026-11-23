@@ -258,7 +258,7 @@ ANALYTICS_RETENTION_DAYS = int(os.environ.get('ANALYTICS_RETENTION_DAYS', '180')
 
 # Crawler hits are recorded (flagged) so the dashboard can show them, but they
 # are worth far less than human views: a crawler can generate thousands of rows
-# a day, and this database lives on an SD card. They are therefore kept for a
+# a day, and this database lives on a single disk. They are therefore kept for a
 # shorter window than real traffic.
 ANALYTICS_BOT_RETENTION_DAYS = int(
     os.environ.get('ANALYTICS_BOT_RETENTION_DAYS', '7')
@@ -277,9 +277,9 @@ RESUME_LATEX_ENGINE = os.environ.get('RESUME_LATEX_ENGINE', '')
 # Hard limit on one compile. This MUST stay below GUNICORN_TIMEOUT: the
 # production site runs a single synchronous worker, so a compile that outlives
 # the worker timeout gets the worker killed and takes the whole site down with
-# it, rather than just failing one download. Measured on the Pi Zero 2 W: a warm
-# compile is ~19-24s, so 45 leaves headroom (gunicorn_config.py and .env.example
-# both use 60 for the worker).
+# it, rather than just failing one download. Measured on low-powered hardware:
+# a warm compile is ~19-24s, so 45 leaves headroom (gunicorn_config.py and
+# .env.example both use 60 for the worker).
 RESUME_LATEX_TIMEOUT = int(os.environ.get('RESUME_LATEX_TIMEOUT', '45'))
 
 # How long a request waits for a compile that another request already started
@@ -315,8 +315,8 @@ RESUME_LATEX_CACHE_DIR = os.environ.get('RESUME_LATEX_CACHE_DIR', '')
 # The CV is meant to be a single A4 page. There is more content on the site than
 # fits on one, so these caps are what decide what goes in. They are deliberately
 # plain numbers rather than a "fit to page" loop: a compile costs ~20s on the
-# production Pi (holding the site's only worker), so trying a few variants until
-# one fits would stall the site for a minute.
+# production server (holding the site's only worker), so trying a few variants
+# until one fits would stall the site for a minute.
 #
 # The cost of getting this wrong is a second page, which is visible rather than
 # broken, and `generate_pdf` logs a warning when it happens. `scripts/measure-

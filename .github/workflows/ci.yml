@@ -32,7 +32,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # The pins above are what ships to the Pi, and this environment was built
+      # The pins above are what ships to the server, and this environment was built
       # from them; audit what is installed rather than re-resolving requirements
       # into versions that will not be deployed. A failure here means a
       # deployed version has a known advisory and needs a bump.
@@ -46,7 +46,7 @@ jobs:
           echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> "$GITHUB_ENV"
 
       # Run against production-like settings (captcha enforced, DEBUG off) so CI
-      # exercises the same code paths as the Pi. SECURE_SSL_REDIRECT is disabled
+      # exercises the same code paths as production. SECURE_SSL_REDIRECT is disabled
       # here only because the Django test client speaks plain HTTP.
       - name: Run tests
         env:

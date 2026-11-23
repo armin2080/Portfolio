@@ -4,8 +4,8 @@
 #
 # Tectonic rather than a full TeX Live: it is a single static binary (~26 MB),
 # needs no root, and downloads only the packages a document actually uses. That
-# suits the production Raspberry Pi, where a full TeX Live (hundreds of MB) is a
-# poor fit for a small SD card.
+# suits a small home server, where a full TeX Live (hundreds of MB) is a poor
+# fit for the available disk space.
 #
 # The binary is kept in .latex/ (git-ignored), the same arrangement as the
 # Tailwind CLI in .tailwind/. The first compile also downloads the package bundle
@@ -27,7 +27,7 @@ BIN="${TECTONIC_BIN:-$BIN_DIR/tectonic}"
 case "$(uname -s)-$(uname -m)" in
     Linux-x86_64) ASSET="x86_64-unknown-linux-musl" ;;
     Linux-aarch64 | Linux-arm64) ASSET="aarch64-unknown-linux-musl" ;;
-    # 32-bit ARM: a Pi Zero running 32-bit Raspberry Pi OS reports armv6l/armv7l.
+    # 32-bit ARM systems report armv6l/armv7l.
     Linux-armv6l | Linux-armv7l | Linux-arm) ASSET="arm-unknown-linux-musleabihf" ;;
     Darwin-x86_64) ASSET="x86_64-apple-darwin" ;;
     Darwin-arm64) ASSET="aarch64-apple-darwin" ;;

@@ -1,4 +1,4 @@
-# Pinned so a reinstall on the Pi cannot silently change a major version, and
+# Pinned so a reinstall on the server cannot silently change a major version, and
 # so CI audits the same versions that are deployed. Django stays on the 5.2 LTS
 # (supported until April 2028); moving to 6.x is a deliberate change, not
 # something `pip install -r` should decide during a deploy.

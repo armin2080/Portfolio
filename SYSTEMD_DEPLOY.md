@@ -1,9 +1,9 @@
-# Raspberry Pi systemd deployment
+# systemd deployment
 
 This deployment runs Django directly with Gunicorn on port 80. It uses SQLite
-at `/var/lib/portfolio/db.sqlite3`, making it suitable for a Raspberry Pi Zero
-2 W. WhiteNoise serves static files, while Django serves the small amount of
-uploaded media used by this portfolio.
+at `/var/lib/portfolio/db.sqlite3`, making it suitable for a small home server
+or other low-resource machine. WhiteNoise serves static files, while Django
+serves the small amount of uploaded media used by this portfolio.
 
 ## Install
 
@@ -110,7 +110,7 @@ yours (see below).
 The resume page's download button builds the CV from the site's content with
 Tectonic (see the README). Three things about the service sandbox matter:
 
-- **Install the engine on the Pi.** `scripts/install-latex.sh` selects the right
+- **Install the engine on the server.** `scripts/install-latex.sh` selects the right
   binary for the architecture (64-bit `aarch64`, or `armhf` on a 32-bit OS) and
   puts it in `.latex/` inside the project:
 
@@ -134,8 +134,8 @@ Tectonic (see the README). Three things about the service sandbox matter:
 - **Keep `RESUME_LATEX_TIMEOUT` below `GUNICORN_TIMEOUT`.** The site runs one
   synchronous worker, so a compile that outlives the worker timeout gets the
   worker killed and takes the *whole site* down, not just the download.
-  **Measured on a Pi Zero 2 W: a warm compile is ~19–24 s** (the very first one
-  took 2 m 16 s, because it also downloads the package bundle). `.env.example`
+  **Measured on low-powered hardware: a warm compile is ~19–24 s** (the first
+  one took 2 m 16 s, because it also downloads the package bundle). `.env.example`
   therefore sets `RESUME_LATEX_TIMEOUT=45` with `GUNICORN_TIMEOUT=60`.
 
 - **Keep `CACHE_LOCATION` out of `/tmp`.** The unit sets `PrivateTmp=true`, so the
@@ -169,7 +169,7 @@ takes a fraction of a second.
 ## Restrict the origin to Cloudflare
 
 The app binds `0.0.0.0:80`, and Cloudflare's proxy protection only covers
-traffic that actually goes through Cloudflare. If the Pi is reachable directly
+traffic that actually goes through Cloudflare. If the server is reachable directly
 (e.g. a port-forward on the router), anyone can bypass the CDN, its WAF and its
 rate limiting. Three independent measures:
 
@@ -209,7 +209,7 @@ rate limiting. Three independent measures:
 `requirements.txt` is pinned, so `pip install -r` never changes a major version
 on its own. Dependabot opens weekly PRs (Django major versions are excluded on
 purpose); CI runs the tests, `check --deploy` and `pip-audit` against the
-installed set. To apply an update on the Pi:
+installed set. To apply an update on the server:
 
 ```bash
 git pull
@@ -263,7 +263,7 @@ sudo systemctl restart portfolio
 ```
 
 Frontend changes: `static/css/tailwind.css` is committed, so no build is needed
-on the Pi. If you changed templates or styles, run `scripts/build-css.sh`
+on the server. If you changed templates or styles, run `scripts/build-css.sh`
 locally and commit the regenerated bundle before pulling.
 
 The service runs migrations and collects static files before each start. If

@@ -303,7 +303,7 @@ def resume_generator_view(req):
     asked for before is served straight from the cache.
 
     The POST is rate limited because every *new* combination is a full LaTeX
-    compile, which is ~20s on the production Pi and holds the site's only worker.
+    compile, which is ~20s on the production server and holds the site's only worker.
     The selections decide the cache key, so varying them is the one way to ask
     for fresh work each time. The limit is deliberately strict (five an hour):
     it is abuse mitigation for a personal site, and a visitor tailoring one CV

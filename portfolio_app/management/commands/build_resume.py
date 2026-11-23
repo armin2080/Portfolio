@@ -1,10 +1,10 @@
 """Build the CV now, instead of waiting for a visitor to ask for it.
 
 The CV is generated on demand (see ``portfolio_app.resume_latex``), so the first
-download after the content changes has to pay for the LaTeX compile. On the
-production Raspberry Pi that is the awkward part: a single synchronous Gunicorn
-worker serves the whole site with a 30-second timeout, so a long compile can have
-the worker killed — taking the site down, not just the download.
+download after the content changes has to pay for the LaTeX compile. On a
+low-powered production server that is the awkward part: a single synchronous
+Gunicorn worker serves the whole site with a 30-second timeout, so a long
+compile can have the worker killed — taking the site down, not just the download.
 
 Running this command moves that cost off the request path. The PDF is built here
 and left in the cache, so the visitor's download is a cache hit and the site

@@ -396,9 +396,9 @@ step with the content — editing the site is what changes the CV.
    ```
 
 `build_resume` is optional day to day, but worth running after changing content:
-the first download after a change pays for the compile, and on the Pi that is the
-slow part. `--tex` writes exactly what the engine was given, which is the useful
-thing to look at when a change will not compile.
+the first download after a change pays for the compile, and on a low-powered
+server that is the slow part. `--tex` writes exactly what the engine was given,
+which is the useful thing to look at when a change will not compile.
 
 **The engine.** [Tectonic](https://tectonic-typesetting.github.io/) — a single
 static binary, no root needed, and it downloads only the packages the document
@@ -425,7 +425,7 @@ description cannot inject LaTeX. Values arrive already escaped — do not add a
 page, so the `RESUME_MAX_*` settings decide what goes in and long descriptions
 are shortened — preferably at a sentence boundary, otherwise with a visible
 ellipsis. Trimming is a fixed budget rather than a "compile, measure, retry"
-loop, because a compile costs ~20 s on the Pi and holds the site's only worker.
+loop, because a compile costs ~20 s on the server and holds the site's only worker.
 `generate_pdf` logs a warning if the result still runs long, and
 `scripts/measure-resume.py` reports the page count for any database:
 
@@ -470,11 +470,11 @@ nothing is written to `media/` (where `prune_media` would eventually see it as a
 orphan). Only one compile runs at a time: a second request during a compile waits
 for the result rather than starting a competing LaTeX process.
 
-**On the Pi, the timeout and the cache both matter.** The site runs a single
+**On the server, the timeout and the cache both matter.** The site runs a single
 synchronous Gunicorn worker, so a compile holds the only worker for its whole
 duration and the rest of the site does not respond meanwhile. A warm compile
-measures **~19–24 s** on a Pi Zero 2 W (the first one took 2 m 16 s, because it
-also downloads the package bundle). So:
+measures **~19–24 s** on low-powered hardware (the first one took 2 m 16 s,
+because it also downloads the package bundle). So:
 
 - `RESUME_LATEX_TIMEOUT` (default 45s) must stay **below** `GUNICORN_TIMEOUT`,
   otherwise a compile gets the *worker* killed and takes the whole site down
@@ -494,7 +494,7 @@ constant in `resume_latex.py` that mirrors the Languages panel on `/resume/`.
 If they ever become editable, they should move to a model and that constant go
 away.
 
-### Raspberry Pi deployment
+### Production deployment
 
 For a lightweight production setup, use the Gunicorn systemd deployment in
 [SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md). The service is enabled at boot and

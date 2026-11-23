@@ -41,7 +41,7 @@ WEBP_QUALITY = 82
 MAX_DIMENSION = 1600
 
 # WebP's slowest compression is only about 1-2% smaller than this, for several
-# times the CPU. That matters on the Raspberry Pi that runs the site.
+# times the CPU. That matters on a low-powered server.
 WEBP_METHOD = 4
 
 # Formats Pillow can open that we expect to receive. Used only for reporting, so

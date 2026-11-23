@@ -2,9 +2,9 @@
 #
 # Build the production Tailwind CSS bundle.
 #
-# Uses the standalone Tailwind CLI so Node.js is not required (handy on a
-# Raspberry Pi). The binary is downloaded once into .tailwind/ (git-ignored)
-# and the compiled CSS is written to static/css/tailwind.css.
+# Uses the standalone Tailwind CLI so Node.js is not required on the server.
+# The binary is downloaded once into .tailwind/ (git-ignored) and the compiled
+# CSS is written to static/css/tailwind.css.
 #
 # Environment:
 #   TAILWIND_VERSION   CLI version to fetch (default below)

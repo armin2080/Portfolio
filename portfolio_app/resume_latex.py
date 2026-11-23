@@ -18,8 +18,8 @@ Two ways to ask for one:
 Either way the document is meant to be **one A4 page**. There is more content on
 the site than fits on one, so ``_select`` and the ``RESUME_MAX_*`` settings decide
 what goes in, and long descriptions are shortened — preferably at a sentence
-boundary — rather than spilling over. A compile costs ~20s on the production Pi
-and holds the site's only worker, so this is a fixed budget rather than a
+boundary — rather than spilling over. A compile costs ~20s on the production
+server and holds the site's only worker, so this is a fixed budget rather than a
 "compile, measure, retry" loop; ``generate_pdf`` logs a warning if the result is
 still longer than a page.
 
@@ -46,10 +46,10 @@ the hash of the source it was built from, which is why a brand new rendering can
 never serve a stale file and why ``manage.py prune_media`` has nothing to
 misidentify as an orphan.
 
-On the production Raspberry Pi the compile is the expensive part, so repeated
-downloads of unchanged content are served from the cache, and only one compile
-runs at a time (a second request during a compile waits for it rather than
-starting a competing LaTeX process on a machine with 416 MB of RAM).
+On a low-powered production server the compile is the expensive part, so
+repeated downloads of unchanged content are served from the cache, and only one
+compile runs at a time (a second request during a compile waits for it rather
+than starting a competing LaTeX process on a small machine).
 """
 
 from __future__ import annotations
@@ -706,7 +706,7 @@ def find_engine():
 
     ``RESUME_LATEX_ENGINE`` wins when set — either a binary name or a full path.
     Otherwise the project's own downloaded Tectonic binary is preferred, so the
-    same command works on a developer machine, in CI and on the Pi without a
+    same command works on a developer machine, in CI and on the server without a
     system LaTeX install; a system pdflatex is equally acceptable.
     """
     explicit = _resolve_engine(settings.RESUME_LATEX_ENGINE)
@@ -763,7 +763,7 @@ class Compilation:
     The page count is read from the engine's own log rather than by parsing the
     PDF: xdvipdfmx writes PDF 1.5, which hides the page tree inside a compressed
     object stream, so counting it from the bytes needs either a PDF library (a
-    dependency, and something else to keep current on the Pi) or a hand-written
+    dependency, and something else to keep current on the server) or a hand-written
     object-stream parser. The engine already knows, and says so in the log.
     """
 
@@ -954,7 +954,7 @@ def generate_pdf(options=None, *, use_cache=True, force=False, enforce_budget=Tr
     needed, and a compile can never serve a PDF built from other content.
 
     A cache miss takes the compile lock. A second request arriving during a
-    compile waits for the first one's result — on the production Pi three
+    compile waits for the first one's result — on the production server, three
     simultaneous pdflatex processes would be a memory problem, and the waiting
     request gets the PDF rather than an error.
 
