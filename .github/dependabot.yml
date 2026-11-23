@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Python dependencies. CI runs the test suite and `check --deploy` against
+  # whatever is pinned, and pip-audit against the installed environment, so a
+  # bump that introduces a known vulnerability or a breaking change is visible
+  # in the PR. Django stays on 5.2 LTS deliberately; a major bump is a migration
+  # with its own testing, not an automated weekly update.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "django"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
