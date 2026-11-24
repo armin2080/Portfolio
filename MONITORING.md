@@ -20,10 +20,11 @@ unchanged. `systemctl list-timers 'portfolio-*'` shows all of them.
 ## How to see it
 
 ```bash
-# Is the service healthy?
+# Is the service healthy? (localhost is in ALLOWED_HOSTS by default; use your
+# site's host if you removed it.)
 systemctl status portfolio
 curl -s http://127.0.0.1/healthz/ \
-  -H "Host: $(sed -n 's/^SITE_URL=//p' .env | sed -E 's#^https?://##; s#/.*$##')" \
+  -H 'Host: localhost' \
   -H 'X-Forwarded-Proto: https'
 
 # What have the checks and alerts been doing?

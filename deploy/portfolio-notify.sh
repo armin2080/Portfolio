@@ -39,6 +39,7 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 if ! curl --silent --show-error --fail --max-time 15 \
+    --retry 3 --retry-delay 2 --retry-connrefused \
     -H "Title: $TITLE" \
     -H "Priority: high" \
     -H "Tags: rotating_light" \

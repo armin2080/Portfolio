@@ -1,5 +1,7 @@
 [Unit]
 Description=Send an alert that a portfolio unit failed
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 # The message is deliberately generic: this unit is the OnFailure target for

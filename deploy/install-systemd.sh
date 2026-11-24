@@ -109,7 +109,11 @@ if [[ ! -f "$MONITOR_ENV" ]]; then
 fi
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now portfolio.service
+# Restart rather than `enable --now`: on an update the running process still has
+# the old code, and the watchdog must not start checking /healthz/ before the
+# new endpoint is actually serving. `restart` also starts a stopped service.
+sudo systemctl enable portfolio.service
+sudo systemctl restart portfolio.service
 sudo systemctl enable --now portfolio-purge.timer
 sudo systemctl enable --now portfolio-github-sync.timer
 sudo systemctl enable --now portfolio-media-prune.timer
@@ -123,9 +127,15 @@ fi
 
 sudo systemctl enable --now portfolio-watchdog.timer
 
-if ! sudo systemctl enable --now smartd; then
-    echo "Warning: smartd could not be enabled; SMART health will be checked" >&2
-    echo "only when the watchdog runs smartctl itself." >&2
+# On Ubuntu, smartd.service is an alias linked to smartmontools.service, which
+# `systemctl enable` refuses to touch ("Refusing to operate on linked unit
+# file") even though it is already enabled. Check first, then only start it.
+if ! systemctl is-enabled --quiet smartd 2>/dev/null; then
+    sudo systemctl enable smartd || true
+fi
+if ! sudo systemctl start smartd; then
+    echo "Warning: smartd could not be started; the watchdog still checks" >&2
+    echo "disk health with smartctl, but continuous monitoring is off." >&2
 fi
 
 echo
