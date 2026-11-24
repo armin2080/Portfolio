@@ -1,6 +1,7 @@
 [Unit]
 Description=Delete old portfolio page-view statistics
 After=portfolio.service
+OnFailure=portfolio-alert.service
 
 [Service]
 Type=oneshot

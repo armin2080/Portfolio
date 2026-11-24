@@ -2,11 +2,13 @@ import logging
 from datetime import timedelta
 
 from django.contrib.admin.views.decorators import staff_member_required
+from django.core.cache import cache
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db import connection
 from django.db.models import Count, Prefetch
 from django.db.models.functions import TruncDate
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
@@ -58,6 +60,52 @@ def index(req):
         'projects': projects,
         'profile': profile,
     })
+
+
+def healthz(req):
+    """Liveness probe for an external uptime monitor.
+
+    Checks the two things a visitor actually depends on: the database and the
+    cache (which backs rate limiting and the generated CV). The LaTeX engine is
+    reported too, but its absence does not fail the probe — the site is fully
+    browsable without it, only the CV download is unavailable.
+
+    Deliberately cheap and side-effect free apart from one short-lived cache
+    key, so a monitor polling every few minutes costs nothing. It is excluded
+    from the visitor statistics and from robots.txt.
+    """
+    checks = {}
+    healthy = True
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            cursor.fetchone()
+        checks['database'] = 'ok'
+    except Exception:
+        logger.exception('Health check: database is unavailable')
+        checks['database'] = 'error'
+        healthy = False
+
+    try:
+        cache.set('portfolio:healthz', 'ok', 10)
+        if cache.get('portfolio:healthz') != 'ok':
+            raise RuntimeError('cache write was not readable')
+        checks['cache'] = 'ok'
+    except Exception:
+        logger.exception('Health check: cache is unavailable')
+        checks['cache'] = 'error'
+        healthy = False
+
+    checks['latex'] = 'ok' if resume_latex.engine_available() else 'unavailable'
+
+    response = JsonResponse(
+        {'status': 'ok' if healthy else 'error', 'checks': checks},
+        status=200 if healthy else 503,
+    )
+    response['Cache-Control'] = 'no-store'
+    response['X-Robots-Tag'] = 'noindex'
+    return response
 
 
 @ratelimit(key='ip', rate='3/h', method='POST', block=False)

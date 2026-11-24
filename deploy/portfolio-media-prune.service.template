@@ -1,6 +1,7 @@
 [Unit]
 Description=Delete portfolio media files that nothing references
 After=portfolio.service
+OnFailure=portfolio-alert.service
 
 [Service]
 Type=oneshot

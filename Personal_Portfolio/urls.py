@@ -37,6 +37,7 @@ def robots_txt(request):
         "User-agent: *",
         "Disallow: /admin/",
         "Disallow: /dashboard/",
+        "Disallow: /healthz/",
         "Allow: /",
         f"Sitemap: {settings.SITE_URL}/sitemap.xml",
     ]

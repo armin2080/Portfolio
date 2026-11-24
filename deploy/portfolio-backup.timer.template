@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily portfolio backup
+
+[Timer]
+# Before the nightly window in which the site is stopped, and persistent so a
+# missed run happens after the next boot instead of being skipped.
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=20min
+
+[Install]
+WantedBy=timers.target

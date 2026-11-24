@@ -2,6 +2,7 @@
 Description=Import new portfolio projects from GitHub
 After=network-online.target
 Wants=network-online.target
+OnFailure=portfolio-alert.service
 
 [Service]
 Type=oneshot

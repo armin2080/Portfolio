@@ -2,6 +2,8 @@
 Description=Portfolio Django application
 After=network-online.target
 Wants=network-online.target
+# Sends one alert when systemd gives up restarting the service.
+OnFailure=portfolio-alert.service
 
 [Service]
 Type=simple

@@ -1,0 +1,15 @@
+[Unit]
+Description=Check portfolio service health, disk, memory, SMART and backups
+After=portfolio.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/portfolio-watchdog
+# Runs as root because smartctl needs raw device access and the monitor
+# configuration is root-only. The filesystem stays read-only apart from /run,
+# where the script keeps its "already alerted" marker.
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/run

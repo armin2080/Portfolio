@@ -1,0 +1,9 @@
+[Unit]
+Description=Send an alert that a portfolio unit failed
+
+[Service]
+# The message is deliberately generic: this unit is the OnFailure target for
+# the web service and for every maintenance job, and `systemctl --failed`
+# names the one that actually broke.
+Type=oneshot
+ExecStart=/usr/local/bin/portfolio-notify "Portfolio unit failed on %H" "systemd stopped or failed a portfolio unit. Inspect: systemctl --failed; journalctl -u portfolio.service -n 100 --no-pager"

@@ -498,7 +498,8 @@ away.
 
 For a lightweight production setup, use the Gunicorn systemd deployment in
 [SYSTEMD_DEPLOY.md](SYSTEMD_DEPLOY.md). The service is enabled at boot and
-automatically restarts after application failures.
+automatically restarts after application failures. Uptime monitoring, alerting
+and daily backups are described in [MONITORING.md](MONITORING.md).
 
 ### How to Use
 

@@ -3,6 +3,8 @@ from . import views
 
 urlpatterns = [
     path('', views.index, name='index'),
+    # Health probe for an external uptime monitor and the host watchdog.
+    path('healthz/', views.healthz, name='healthz'),
     path('contact/', views.contact_view, name='contact'),
     path('contact/success/', views.contact_success, name='contact_success'),
     path('skills/', views.skills_view, name='skills'),

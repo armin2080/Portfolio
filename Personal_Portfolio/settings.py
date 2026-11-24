@@ -420,6 +420,15 @@ MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 # unreferenced, and an automated run must not delete one.
 MEDIA_PRUNE_MIN_AGE_HOURS = int(os.environ.get('MEDIA_PRUNE_MIN_AGE_HOURS', '24'))
 
+# Backups written by `manage.py backup_portfolio`, which the daily
+# portfolio-backup timer runs. The archive holds the database, uploaded media
+# and .env (so a restore needs nothing else), which means it also holds the
+# site's secrets: it is created 0600 inside a 0700 directory. Point BACKUP_DIR
+# at another mounted disk or a synced folder if one is available; a copy on the
+# same disk survives deletions and corruption but not disk failure.
+BACKUP_DIR = Path(os.environ.get('BACKUP_DIR', '/var/backups/portfolio'))
+BACKUP_KEEP_DAYS = int(os.environ.get('BACKUP_KEEP_DAYS', '14'))
+
 
 # Security settings for production (behind Cloudflare / a TLS-terminating proxy)
 if not DEBUG:

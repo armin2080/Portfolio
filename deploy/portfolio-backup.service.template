@@ -1,0 +1,20 @@
+[Unit]
+Description=Back up the portfolio database, media and configuration
+After=portfolio.service
+OnFailure=portfolio-alert.service
+
+[Service]
+Type=oneshot
+User=__APP_USER__
+Group=__APP_GROUP__
+WorkingDirectory=__PROJECT_DIR__
+EnvironmentFile=__PROJECT_DIR__/.env
+ExecStart=__PROJECT_DIR__/.venv/bin/python manage.py backup_portfolio
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# /var/backups rather than the exact BACKUP_DIR: the path is configurable in
+# .env, and this keeps the unit working when it is moved below /var/backups.
+# A BACKUP_DIR outside these paths needs adding here as well.
+ReadWritePaths=/var/backups /var/lib/portfolio __PROJECT_DIR__

@@ -29,6 +29,8 @@ DEFAULT_EXCLUDED_EXACT = (
     '/favicon.ico',
     '/robots.txt',
     '/sitemap.xml',
+    # Monitoring probes are not visitors.
+    '/healthz/',
     # A generated PDF is a download, not a page. Counting it would inflate the
     # dashboard's page views and put a non-page at the top of "top pages".
     '/resume/download/',
